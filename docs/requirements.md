@@ -10,7 +10,7 @@ Slackの特定チャンネルに投稿されたメッセージに対して、RAG
 
 - [ ] **Slack連携機能**
   - Slack App作成・設定（Bolt SDK使用）
-  - Socket ModeまたはWebhooksでのメッセージ受信
+  - Socket Modeでのメッセージ受信
   - 絵文字リアクション投稿機能
   - 必要権限の取得（channels:history, reactions:write）
   - メッセージフィルタリング（Bot自身の投稿除外）
@@ -34,10 +34,9 @@ Slackの特定チャンネルに投稿されたメッセージに対して、RAG
 
 - [ ] **コンテナ環境機能**
   - Docker Composeによる環境構築
-  - appコンテナ（FastAPI + Slack Boltアプリケーション）
+  - appコンテナ（Slack Boltアプリケーション）
   - dbコンテナ（PostgreSQL + pgvector）
   - 環境変数による設定管理
-  - ヘルスチェックエンドポイント
 
 ### 2.2 オプション機能
 
@@ -73,19 +72,17 @@ Slackの特定チャンネルに投稿されたメッセージに対して、RAG
 ### 3.4 互換性
 
 - Python 3.9+対応
-- FastAPI 0.115.x 対応
 - PostgreSQL 14+ + pgvector拡張対応
 - OpenAI API v1 対応
 - Docker & Docker Compose対応
-- Slack Bolt SDK対応
+- Slack Bolt SDK (Socket Mode)対応
 
 ## 4. 制約事項
 
 ### 4.1 技術的制約
 
 - **開発言語**: Python 3.9+
-- **フレームワーク**: FastAPI（Webhooks受信用、簡素な構成）
-- **Slack SDK**: slack-bolt-python（Socket Mode対応）
+- **Slack SDK**: slack-bolt-python（Socket Mode専用）
 - **データベース**: PostgreSQL + pgvector拡張
 - **DBクライアント**: psycopg (psycopg3)
 - **運用環境**: Docker Compose環境（ローカル）
@@ -160,8 +157,7 @@ Slackの特定チャンネルに投稿されたメッセージに対して、RAG
   - 埋め込みモデル処理エラー対応
 
 - **アーキテクチャ設計**
-  - FastAPIアプリケーション構造
-  - Slack BoltとFastAPIの統合方法
+  - Slack Bolt (Socket Mode)アプリケーション構造
   - 非同期処理アーキテクチャ
 
 - **設定管理方式**
