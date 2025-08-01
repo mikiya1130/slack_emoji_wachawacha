@@ -1,0 +1,42 @@
+[
+  {
+    "code": ":smile:",
+    "description": "Happy, joyful, pleased expression",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "greeting, celebration, good news",
+    "priority": 5
+  },
+  {
+    "code": ":thumbsup:",
+    "description": "Approval, agreement, good job",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "approval, encouragement",
+    "priority": 4
+  },
+  {
+    "code": ":heart:",
+    "description": "Love, affection, care",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "love, appreciation, gratitude",
+    "priority": 5
+  },
+  {
+    "code": ":thinking_face:",
+    "description": "Contemplation, consideration, pondering",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "questions, decision making",
+    "priority": 3
+  },
+  {
+    "code": ":fire:",
+    "description": "Excitement, energy, something hot or trending",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "excitement, trending topics",
+    "priority": 4
+  }
+]

@@ -1,0 +1,46 @@
+services:
+  app:
+    build: .
+    container_name: slack_emoji_bot
+    environment:
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=postgresql://user:pass@db:5432/emoji_bot
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - emoji_bot_network
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: emoji_bot_db
+    environment:
+      - POSTGRES_DB=emoji_bot
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d emoji_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - emoji_bot_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  emoji_bot_network:
+    driver: bridge
