@@ -33,6 +33,13 @@ async def main():
         # TODO: Start Slack Bolt app in Phase 1
         logger.info("Slack Emoji Bot is ready!")
         
+        # Keep container running for testing/development
+        import os
+        if os.getenv('KEEP_RUNNING', 'false').lower() == 'true':
+            logger.info("Keeping container running for testing...")
+            while True:
+                await asyncio.sleep(60)
+        
     except ValueError as e:
         logger.error(f"Configuration error: {e}")
         raise

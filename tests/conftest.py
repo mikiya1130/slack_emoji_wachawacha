@@ -7,8 +7,7 @@ following TDD best practices with proper mocking and test isolation.
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Generator, AsyncGenerator
+from unittest.mock import Mock, AsyncMock
 
 # Import when dependencies are available
 # from app.config import Config

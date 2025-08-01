@@ -9,6 +9,7 @@ services:
       - DATABASE_URL=postgresql://user:pass@db:5432/emoji_bot
       - ENVIRONMENT=development
       - LOG_LEVEL=INFO
+      - KEEP_RUNNING=true
     depends_on:
       db:
         condition: service_healthy

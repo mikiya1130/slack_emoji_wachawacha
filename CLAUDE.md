@@ -31,10 +31,7 @@ This is a Slack Emoji Reaction Bot that uses RAG (Retrieval-Augmented Generation
 ### Environment Setup
 ```bash
 # Build and start containers
-docker-compose up -d
-
-# Install Python dependencies (when developing locally)
-pip install -r requirements.txt
+docker-compose up -d --build
 
 # Initialize database schema
 # (Commands will be added during implementation)
@@ -42,17 +39,17 @@ pip install -r requirements.txt
 
 ### Testing (TDD Approach)
 ```bash
-# Run all tests
-pytest
+# Run all tests (using Docker Compose)
+docker compose exec app pytest
 
 # Run specific test file
-pytest tests/test_services/test_openai_service.py
+docker compose exec app pytest tests/test_services/test_openai_service.py
 
 # Run tests with coverage
-pytest --cov=app --cov-report=html
+docker compose exec app pytest --cov=app --cov-report=html
 
 # Run tests in watch mode during TDD
-pytest-watch
+docker compose exec app pytest-watch
 ```
 
 ### Development Workflow
@@ -64,13 +61,13 @@ The project follows strict TDD (Test-Driven Development):
 ### Linting and Code Quality
 ```bash
 # Format code
-black app/ tests/
+docker compose exec app black app/ tests/
 
 # Check type hints
-mypy app/
+docker compose exec app mypy app/
 
 # Lint code
-flake8 app/ tests/
+docker compose exec app flake8 app/ tests/
 ```
 
 ## Technical Specifications
