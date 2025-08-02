@@ -19,7 +19,6 @@ RUN pip install -U pip \
 # Copy application code
 COPY app/ ./app/
 COPY data/ ./data/
-COPY tests/ ./tests/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \

@@ -84,7 +84,7 @@ def sample_slack_message():
         "text": "今日はいい天気ですね！",
         "user": "U123456789",
         "channel": "C123456789",
-        "ts": "1234567890.123456"
+        "ts": "1234567890.123456",
     }
 
 
@@ -100,7 +100,7 @@ def sample_emoji_data():
             "emotion_tone": "positive",
             "usage_scene": "greeting, celebration, good news",
             "priority": 5,
-            "embedding": [0.1] * 1536
+            "embedding": [0.1] * 1536,
         },
         {
             "id": 2,
@@ -110,8 +110,8 @@ def sample_emoji_data():
             "emotion_tone": "positive",
             "usage_scene": "weather, outdoor activities",
             "priority": 3,
-            "embedding": [0.2] * 1536
-        }
+            "embedding": [0.2] * 1536,
+        },
     ]
 
 
@@ -163,22 +163,28 @@ def setup_test_environment(monkeypatch):
 @pytest.fixture
 def mock_openai_error():
     """Mock OpenAI API error for testing error handling."""
+
     def side_effect(*args, **kwargs):
         raise Exception("OpenAI API Error")
+
     return side_effect
 
 
 @pytest.fixture
 def mock_slack_error():
     """Mock Slack API error for testing error handling."""
+
     def side_effect(*args, **kwargs):
         raise Exception("Slack API Error")
+
     return side_effect
 
 
 @pytest.fixture
 def mock_database_error():
     """Mock database error for testing error handling."""
+
     def side_effect(*args, **kwargs):
         raise Exception("Database Error")
+
     return side_effect

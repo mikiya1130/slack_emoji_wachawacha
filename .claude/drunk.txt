@@ -120,3 +120,41 @@ Please provide the actual text you'd like me to evaluate.
 
 2025-08-02 08:19:15 1
 
+2025-08-02 08:22:05 1
+
+2025-08-02 08:49:11 1
+
+2025-08-02 08:50:50 1
+
+2025-08-02 08:58:08 I need to evaluate the intoxication level of the given text on a scale of 1-10.
+
+The target text is:
+```
+続けて
+```
+
+This text simply means "continue" or "go on" in Japanese. It's a short, coherent phrase with no signs of intoxication (no slurring, misspellings, incoherent thoughts, or rambling).
+
+1
+
+2025-08-02 09:12:12 1
+
+2025-08-02 09:53:00 1
+
+2025-08-02 09:58:38 2
+
+2025-08-02 10:00:51 1
+
+2025-08-02 10:02:16 1
+
+2025-08-02 10:07:57 I need to evaluate the intoxication level of the given text on a scale of 1-10.
+
+The target text is:
+```
+Code Quality Check
+```
+
+This appears to be a normal technical phrase with no signs of intoxication - proper capitalization, clear meaning, no typos or slurred text.
+
+1
+

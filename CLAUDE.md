@@ -9,18 +9,21 @@ This is a Slack Emoji Reaction Bot that uses RAG (Retrieval-Augmented Generation
 ## Architecture
 
 ### High-Level System Design
+
 - **App Container**: Python-based Slack Bolt application (Socket Mode)
 - **DB Container**: PostgreSQL 16+ with pgvector extension for vector similarity search
 - **AI Integration**: OpenAI text-embedding-3-small model for message vectorization
 - **Deployment**: Docker Compose for local orchestration
 
 ### Key Components
+
 - `SlackHandler`: Manages Slack message reception and emoji reaction posting
 - `OpenAIService`: Handles message vectorization using OpenAI embeddings
 - `EmojiService`: Manages emoji data and performs vector similarity search
 - `DatabaseService`: Abstracts PostgreSQL/pgvector operations using psycopg3
 
 ### Data Flow
+
 1. Slack message received via Socket Mode
 2. Message text vectorized using OpenAI API
 3. Vector similarity search against emoji database (pgvector cosine similarity)
@@ -29,6 +32,7 @@ This is a Slack Emoji Reaction Bot that uses RAG (Retrieval-Augmented Generation
 ## Development Commands
 
 ### Environment Setup
+
 ```bash
 # Build and start containers
 docker-compose up -d --build
@@ -38,6 +42,7 @@ docker-compose up -d --build
 ```
 
 ### Testing (TDD Approach)
+
 ```bash
 # Run all tests (using Docker Compose)
 docker compose exec app pytest
@@ -53,12 +58,15 @@ docker compose exec app pytest-watch
 ```
 
 ### Development Workflow
+
 The project follows strict TDD (Test-Driven Development):
+
 1. **RED**: Write failing tests first
 2. **GREEN**: Implement minimal code to pass tests
 3. **REFACTOR**: Improve code while keeping tests passing
 
 ### Linting and Code Quality
+
 ```bash
 # Format code
 docker compose exec app black app/ tests/
@@ -73,12 +81,14 @@ docker compose exec app flake8 app/ tests/
 ## Technical Specifications
 
 ### Required Environment Variables
+
 - `SLACK_BOT_TOKEN`: Slack Bot User OAuth Token
 - `SLACK_APP_TOKEN`: Slack App-Level Token (for Socket Mode)
 - `OPENAI_API_KEY`: OpenAI API key for embedding generation
 - `DATABASE_URL`: PostgreSQL connection string with pgvector
 
 ### Database Schema
+
 ```sql
 CREATE TABLE emojis (
     id SERIAL PRIMARY KEY,
@@ -95,7 +105,8 @@ CREATE TABLE emojis (
 ```
 
 ### Project Structure
-```
+
+```text
 app/
 ├── main.py                    # Application entry point
 ├── config.py                  # Configuration management
@@ -118,6 +129,7 @@ tests/
 ## Development Notes
 
 ### TDD Implementation Rules
+
 - Each feature implementation must be preceded by test creation
 - Tests must fail initially (RED phase)
 - Implement minimal code to make tests pass (GREEN phase)
@@ -125,19 +137,79 @@ tests/
 - Maintain 80%+ test coverage
 
 ### API Integration Considerations
+
 - OpenAI API rate limiting requires exponential backoff retry logic
 - Slack Socket Mode requires proper WebSocket connection management
 - pgvector similarity search should use cosine distance with proper indexing
 
 ### Performance Requirements
+
 - Message processing should complete within 5 seconds
 - Vector search response time should be under 1 second
 - Support concurrent message processing (async/await pattern)
 
 ### Security Requirements
+
 - All API keys must be stored in environment variables
 - Message content is processed temporarily only (no persistent storage)
 - Database connection uses secure connection pooling
+
+## Code Quality Check Requirements
+
+**IMPORTANT**: After completing any code changes, you MUST run the following commands in order:
+
+1. **Format Code**: `docker compose exec app black app/ tests/`
+2. **Lint Code**: `docker compose exec app flake8 app/ tests/`
+3. **Check Type Hints**: `docker compose exec app mypy app/`
+4. **Run Tests with Coverage**: `docker compose exec app pytest --cov=app --cov-report=term-missing`
+   - ALL tests must show as "passed" only
+   - NO failed, skipped, or warnings are allowed
+   - Test coverage must be 80% or higher
+
+**Critical Rule**: If ANY check fails and you make fixes, you MUST restart from Step 1 and run ALL checks again in sequence. All checks must pass consecutively without any intermediate fixes before considering the task complete.
+
+**ABSOLUTELY CRITICAL**: You MUST NOT declare the task complete unless ALL of the following conditions are met:
+
+- ✅ Black formatting completes without changes
+- ✅ Flake8 reports no errors
+- ✅ Mypy reports no errors
+- ✅ Pytest result shows ONLY "passed" tests (no failed, skipped, xfailed, or warnings)
+- ✅ Coverage is 80% or higher
+
+**Pytest Result Requirements**:
+
+The ONLY acceptable pytest result format is:
+```text
+========== XXX passed in XX.XXs ==========
+```
+
+Any of the following in the pytest result means the task is NOT complete:
+- `failed` - Fix all failing tests
+- `skipped` - Remove skip decorators or fix underlying issues
+- `xfailed` - Fix expected failures
+- `warnings` - Resolve all warnings
+- `errors` - Fix all errors
+
+Example workflow:
+
+- Run black → Run flake8 → (fails) → Fix issues → **Start over from Step 1**
+- Run black → Run flake8 → Run mypy → (fails) → Fix issues → **Start over from Step 1**
+- Run black → Run flake8 → Run mypy → Run tests → (shows "failed") → Fix tests → **Start over from Step 1**
+- Run black → Run flake8 → Run mypy → Run tests → (shows only "passed") → ✅ Task complete
+
+**Unacceptable result examples**:
+
+```text
+=========== 24 failed, 107 passed, 3 skipped, 24 warnings in 43.26s ============
+```
+
+**The ONLY acceptable result**:
+
+```text
+======================== 134 passed in 45.12s ========================
+```
+
+ONLY "passed" with no other status indicators.
 
 ## Custom Hooks
 
