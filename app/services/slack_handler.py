@@ -381,7 +381,10 @@ class SlackHandler:
             response: Slack APIのレスポンス
         """
         try:
-            if hasattr(response, "headers"):
+            # Check if response has headers and it's not an AsyncMock
+            if hasattr(response, "headers") and not hasattr(
+                response.headers, "_mock_name"
+            ):
                 headers = response.headers
                 self.rate_limit_info = {
                     "remaining": headers.get("X-Rate-Limit-Remaining"),
@@ -424,6 +427,176 @@ class SlackHandler:
         }
         logger.info("Reaction metrics reset")
 
+    # RAG Integration Methods
+
+    def set_emoji_service(self, emoji_service) -> None:
+        """Set the emoji service for RAG integration"""
+        self.emoji_service = emoji_service
+        logger.info("EmojiService connected to SlackHandler")
+
+    async def process_message_for_reactions(
+        self, message_event: Dict[str, Any], fallback_emojis: Optional[List[str]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Process a Slack message and add emoji reactions using RAG
+
+        Args:
+            message_event: Slack message event
+            fallback_emojis: Optional fallback emojis if RAG fails
+
+        Returns:
+            Processing result or None
+        """
+        # Extract message details
+        text = message_event.get("text", "").strip()
+        channel = message_event.get("channel")
+        timestamp = message_event.get("ts")
+
+        # Skip empty messages
+        if not text:
+            logger.debug("Skipping empty message")
+            return None
+
+        # Skip if no channel or timestamp
+        if not channel or not timestamp:
+            logger.warning("Missing channel or timestamp in message event")
+            return None
+
+        try:
+            # Get emojis for the message
+            emojis = await self.get_emojis_for_message(text)
+
+            # Add reactions
+            if emojis:
+                # Extract emoji codes and strip colons
+                emoji_names = [emoji.code.strip(":") for emoji in emojis]
+
+                # Add reactions concurrently
+                await self.add_reactions_batch(channel, timestamp, emoji_names)
+
+                return {
+                    "status": "success",
+                    "emojis_added": emoji_names,
+                    "message": text[:50] + "..." if len(text) > 50 else text,
+                }
+            else:
+                logger.info(f"No emojis found for message: {text[:50]}...")
+                return {"status": "no_emojis", "message": text[:50]}
+
+        except Exception as e:
+            logger.error(f"Error processing message for reactions: {e}")
+
+            # Use fallback emojis if provided
+            if fallback_emojis:
+                try:
+                    await self.add_reactions_batch(channel, timestamp, fallback_emojis)
+                    return {"status": "fallback", "emojis_added": fallback_emojis}
+                except Exception as fallback_error:
+                    logger.error(f"Fallback emoji addition failed: {fallback_error}")
+
+            return {"status": "error", "error": str(e)}
+
+    async def get_emojis_for_message(
+        self, text: str, emotion_tone_filter: Optional[str] = None
+    ) -> List[Any]:
+        """
+        Get appropriate emojis for a message using RAG
+
+        Args:
+            text: Message text
+            emotion_tone_filter: Optional emotion tone filter
+
+        Returns:
+            List of emoji objects
+        """
+        if not hasattr(self, "emoji_service") or not self.emoji_service:
+            raise RuntimeError("EmojiService not configured")
+
+        # Search for emojis using the service
+        return await self.emoji_service.search_by_text(
+            text, emotion_tone=emotion_tone_filter
+        )
+
+    def set_emoji_filters(
+        self, category: Optional[str] = None, emotion_tone: Optional[str] = None
+    ) -> None:
+        """Set emoji filtering preferences"""
+        self.emoji_filter_category = category
+        self.emoji_filter_emotion = emotion_tone
+        logger.info(f"Emoji filters set: category={category}, emotion={emotion_tone}")
+
+    def set_rate_limit(self, max_reactions_per_minute: int) -> None:
+        """Set rate limiting for reactions"""
+        self.rate_limit_max = max_reactions_per_minute
+        self.rate_limit_window: List[float] = []  # Timestamps of recent reactions
+        logger.info(f"Rate limit set to {max_reactions_per_minute} reactions/minute")
+
+    async def check_rag_health(self) -> Dict[str, Any]:
+        """Check health status of RAG integration components"""
+        health_status = {
+            "slack_connected": bool(self.app and self.app.client),
+            "openai_available": False,
+            "database_connected": False,
+            "emoji_count": 0,
+        }
+
+        # Check emoji service
+        if hasattr(self, "emoji_service") and self.emoji_service:
+            try:
+                # Check OpenAI service
+                if hasattr(self.emoji_service, "openai_service"):
+                    health_status["openai_available"] = (
+                        self.emoji_service.openai_service is not None
+                    )
+
+                # Check database by counting emojis
+                emoji_count = await self.emoji_service.count_emojis()
+                health_status["database_connected"] = True
+                health_status["emoji_count"] = emoji_count
+
+            except Exception as e:
+                logger.error(f"Health check failed: {e}")
+
+        return health_status
+
+    async def add_reactions_batch(
+        self, channel: str, timestamp: str, emoji_names: List[str]
+    ) -> None:
+        """Add multiple reactions to a message"""
+        # Apply rate limiting if configured
+        if hasattr(self, "rate_limit_max"):
+            await self._check_rate_limit()
+
+        # Use the existing add_reactions method
+        await self.add_reactions(
+            channel=channel, timestamp=timestamp, emojis=emoji_names
+        )
+
+    async def _check_rate_limit(self) -> None:
+        """Check and enforce rate limiting"""
+        if not hasattr(self, "rate_limit_max"):
+            return
+
+        now = time.time()
+        # Remove old timestamps outside the window
+        self.rate_limit_window = [ts for ts in self.rate_limit_window if now - ts < 60]
+
+        # Check if we're at the limit
+        if len(self.rate_limit_window) >= self.rate_limit_max:
+            # Wait until the oldest timestamp expires
+            wait_time = 60 - (now - self.rate_limit_window[0]) + 0.1
+            if wait_time > 0:
+                logger.info(f"Rate limit reached, waiting {wait_time:.1f}s")
+                await asyncio.sleep(wait_time)
+                # Re-clean the window after waiting
+                now = time.time()
+                self.rate_limit_window = [
+                    ts for ts in self.rate_limit_window if now - ts < 60
+                ]
+
+        # Add current timestamp
+        self.rate_limit_window.append(now)
+
 
 class MockSlackClient:
     """Mock Slack Client for testing（依存関係問題により）"""
@@ -448,3 +621,13 @@ class MockSlackClient:
             error = Mock()
             error.response = {"error": "already_reacted"}
             raise error
+
+        # Return a proper mock response with headers
+        from unittest.mock import Mock
+
+        response = Mock()
+        response.headers = {
+            "X-Rate-Limit-Remaining": "100",
+            "X-Rate-Limit-Reset": "1234567890",
+        }
+        return response

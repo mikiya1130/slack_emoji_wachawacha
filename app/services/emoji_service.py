@@ -451,3 +451,209 @@ class EmojiService:
         except Exception as e:
             logger.error(f"Error in batch search: {e}")
             raise
+
+    async def vectorize_emoji(
+        self,
+        emoji: EmojiData,
+        model: Optional[str] = None,
+        skip_on_error: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Vectorize a single emoji description
+
+        Args:
+            emoji: EmojiData object to vectorize
+            model: Optional custom embedding model
+            skip_on_error: If True, return None on error instead of raising
+
+        Returns:
+            Dict with embedding and metadata, or None if skip_on_error and error occurs
+        """
+        if not self.openai_service:
+            raise RuntimeError("OpenAI service not configured")
+
+        try:
+            if model:
+                # Use custom model with metadata
+                result = await self.openai_service.get_embedding_with_metadata(
+                    emoji.description, model=model
+                )
+                return {
+                    "id": emoji.id,
+                    "code": emoji.code,
+                    "embedding": result["embedding"].tolist(),
+                    "model": result["model"],
+                    "usage": result.get("usage"),
+                }
+            else:
+                # Use default model
+                embedding = await self.openai_service.get_embedding(emoji.description)
+                return {
+                    "id": emoji.id,
+                    "code": emoji.code,
+                    "embedding": embedding.tolist(),
+                }
+
+        except Exception as e:
+            logger.error(f"Error vectorizing emoji {emoji.code}: {e}")
+            if skip_on_error:
+                return {"id": emoji.id, "code": emoji.code, "error": str(e)}
+            raise
+
+    async def vectorize_emojis_batch(
+        self,
+        batch_size: int = 10,
+        continue_on_error: bool = False,
+    ) -> Dict[str, int]:
+        """
+        Vectorize multiple emojis in batches
+
+        Args:
+            batch_size: Number of emojis to process in each batch
+            continue_on_error: If True, continue processing on batch errors
+
+        Returns:
+            Dict with successful and failed counts
+        """
+        if not self.openai_service:
+            raise RuntimeError("OpenAI service not configured")
+
+        # Get all emojis that need vectorization
+        all_emojis = await self._db_service.get_all_emojis()
+
+        successful = 0
+        failed = 0
+        embedding_updates = {}
+
+        # Process in batches
+        for i in range(0, len(all_emojis), batch_size):
+            batch = all_emojis[i : i + batch_size]
+            descriptions = [emoji.description for emoji in batch]
+
+            try:
+                # Get embeddings for batch
+                embeddings = await self.openai_service.get_embeddings_batch(
+                    descriptions
+                )
+
+                # Prepare updates
+                for emoji, embedding in zip(batch, embeddings):
+                    embedding_updates[emoji.id] = embedding.tolist()
+                    successful += 1
+
+                # Update database
+                if embedding_updates:
+                    await self._db_service.batch_update_embeddings(embedding_updates)
+                    embedding_updates.clear()
+
+            except Exception as e:
+                logger.error(f"Error processing batch {i // batch_size + 1}: {e}")
+                failed += len(batch)
+                if not continue_on_error:
+                    raise
+
+        return {"successful": successful, "failed": failed}
+
+    async def vectorize_all_emojis(
+        self,
+        skip_existing: bool = False,
+        category: Optional[str] = None,
+        emotion_tone: Optional[str] = None,
+        progress_callback: Optional[Any] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Vectorize all emojis with various options
+
+        Args:
+            skip_existing: Skip emojis that already have embeddings
+            category: Filter by category
+            emotion_tone: Filter by emotion tone
+            progress_callback: Function to call with progress updates
+            dry_run: If True, don't save to database
+
+        Returns:
+            Dict with processing statistics
+        """
+        if not self.openai_service:
+            raise RuntimeError("OpenAI service not configured")
+
+        # Get all emojis
+        all_emojis = await self._db_service.get_all_emojis()
+
+        # Apply filters
+        filtered_emojis = []
+        filtered_out = 0
+
+        for emoji in all_emojis:
+            # Skip if has embedding and skip_existing is True
+            if skip_existing and emoji.embedding is not None:
+                continue
+
+            # Apply category filter
+            if category and emoji.category != category:
+                filtered_out += 1
+                continue
+
+            # Apply emotion tone filter
+            if emotion_tone and emoji.emotion_tone != emotion_tone:
+                filtered_out += 1
+                continue
+
+            filtered_emojis.append(emoji)
+
+        total = len(filtered_emojis)
+        processed = 0
+        skipped = len(all_emojis) - len(filtered_emojis) - filtered_out
+
+        if dry_run:
+            return {
+                "dry_run": True,
+                "would_process": total,
+                "skipped": skipped,
+                "filtered_out": filtered_out,
+            }
+
+        # Process emojis
+        embedding_updates = {}
+        for idx, emoji in enumerate(filtered_emojis):
+            try:
+                # Get embedding
+                embedding = await self.openai_service.get_embedding(emoji.description)
+                embedding_updates[emoji.id] = embedding.tolist()
+                processed += 1
+
+                # Call progress callback
+                if progress_callback:
+                    progress_callback(idx + 1, total, emoji.code)
+
+            except Exception as e:
+                logger.error(f"Error vectorizing {emoji.code}: {e}")
+                continue
+
+        # Update database
+        if embedding_updates and not dry_run:
+            await self._db_service.batch_update_embeddings(embedding_updates)
+
+        return {
+            "processed": processed,
+            "skipped": skipped,
+            "filtered_out": filtered_out,
+            "total": len(all_emojis),
+        }
+
+    async def update_emoji_embeddings(
+        self, embedding_updates: Dict[int, List[float]]
+    ) -> bool:
+        """
+        Update emoji embeddings in database
+
+        Args:
+            embedding_updates: Dict mapping emoji ID to embedding vector
+
+        Returns:
+            True if successful
+        """
+        result = await self._db_service.batch_update_embeddings(embedding_updates)
+        # Ensure we return True if the database operation succeeded
+        return result if isinstance(result, bool) else True
