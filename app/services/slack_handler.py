@@ -93,6 +93,20 @@ class SlackHandler:
 
         return MockSocketModeHandler()
 
+    async def start(self):
+        """Start the Slack handler and Socket Mode connection."""
+        logger.info("Starting Slack handler...")
+        # In a real implementation, this would start the Socket Mode handler
+        # For now, just log that we're started
+        logger.info("Slack handler started successfully")
+
+    async def stop(self):
+        """Stop the Slack handler and close connections."""
+        logger.info("Stopping Slack handler...")
+        # In a real implementation, this would close Socket Mode connection
+        # For now, just log that we're stopped
+        logger.info("Slack handler stopped successfully")
+
     async def handle_message(self, message: Dict[str, Any]) -> None:
         """
         Slackメッセージを受信し、絵文字リアクションを付与

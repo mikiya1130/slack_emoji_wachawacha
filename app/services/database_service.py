@@ -85,6 +85,10 @@ class DatabaseService:
         except Exception:
             return "***masked***"
 
+    async def connect(self) -> None:
+        """Connect to the database (alias for initialize)"""
+        await self.initialize()
+
     async def initialize(self) -> None:
         """
         データベース接続プールを初期化
@@ -120,6 +124,63 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Failed to initialize database connection: {e}")
             raise DatabaseConnectionError(f"Database initialization failed: {e}")
+
+    async def initialize_schema(self) -> None:
+        """Initialize database schema (tables, indexes, etc.)"""
+        logger.info("Initializing database schema...")
+        try:
+            async with self.get_connection() as conn:
+                async with conn.cursor() as cursor:
+                    # Check if emojis table exists
+                    await cursor.execute(
+                        """
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables
+                            WHERE table_schema = 'public'
+                            AND table_name = 'emojis'
+                        );
+                    """
+                    )
+                    exists = await cursor.fetchone()
+
+                    if exists and exists[0]:
+                        logger.info("Database schema already exists")
+                        return
+
+                    # Create emojis table
+                    logger.info("Creating emojis table...")
+                    await cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS emojis (
+                            id SERIAL PRIMARY KEY,
+                            code VARCHAR(100) NOT NULL UNIQUE,
+                            description TEXT NOT NULL,
+                            category VARCHAR(50),
+                            emotion_tone VARCHAR(20),
+                            usage_scene VARCHAR(100),
+                            priority INTEGER DEFAULT 1,
+                            embedding VECTOR(1536),
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """
+                    )
+
+                    # Create index for vector similarity search
+                    await cursor.execute(
+                        """
+                        CREATE INDEX IF NOT EXISTS idx_emojis_embedding
+                        ON emojis USING ivfflat (embedding vector_cosine_ops)
+                        WITH (lists = 100);
+                    """
+                    )
+
+                    await conn.commit()
+                    logger.info("Database schema initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize database schema: {e}")
+            raise DatabaseOperationError(f"Schema initialization failed: {e}")
 
     async def close(self) -> None:
         """データベース接続プールを閉じる"""

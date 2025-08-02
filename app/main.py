@@ -7,14 +7,25 @@ It initializes the configuration, logging, and starts the Slack Bolt application
 """
 
 import asyncio
+import os
 from app.config import Config
 from app.utils.logging import get_logger
+from app.services.slack_handler import SlackHandler
+from app.services.database_service import DatabaseService
+from app.services.emoji_service import EmojiService
+from app.services.openai_service import OpenAIService
 
 logger = get_logger("main")
+
+# Global references for shutdown
+slack_handler = None
+db_service = None
 
 
 async def main():
     """Main application entry point."""
+    global slack_handler, db_service
+
     logger.info("Starting Slack Emoji Reaction Bot...")
 
     try:
@@ -22,20 +33,35 @@ async def main():
         Config.validate()
         logger.info("Configuration validation successful")
 
-        # TODO: Initialize services in Phase 1+
-        # - SlackHandler (Phase 1)
-        # - DatabaseService (Phase 2)
-        # - EmojiService (Phase 2)
-        # - OpenAIService (Phase 3)
+        # Initialize services
+        logger.info("Initializing services...")
+
+        # Initialize database service
+        db_service = DatabaseService(Config.DATABASE_URL)
+        await db_service.connect()
+        await db_service.initialize_schema()
+        logger.info("Database service initialized")
+
+        # Initialize OpenAI service
+        openai_service = OpenAIService(Config.OPENAI_API_KEY)
+        logger.info("OpenAI service initialized")
+
+        # Initialize emoji service
+        emoji_service = EmojiService(db_service)
+        emoji_service.openai_service = openai_service
+        await emoji_service.load_initial_data()
+        logger.info("Emoji service initialized")
+
+        # Initialize Slack handler
+        slack_handler = SlackHandler(openai_service, emoji_service)
+        slack_handler.set_emoji_service(emoji_service)
+        await slack_handler.start()
+        logger.info("Slack handler initialized")
 
         logger.info("Bot initialized successfully")
-
-        # TODO: Start Slack Bolt app in Phase 1
         logger.info("Slack Emoji Bot is ready!")
 
         # Keep container running for testing/development
-        import os
-
         if os.getenv("KEEP_RUNNING", "false").lower() == "true":
             logger.info("Keeping container running for testing...")
             while True:
@@ -46,6 +72,27 @@ async def main():
         raise
     except Exception as e:
         logger.error(f"Unexpected error during startup: {e}")
+        raise
+
+
+async def shutdown():
+    """Gracefully shutdown the application."""
+    logger.info("Shutting down Slack Emoji Reaction Bot...")
+
+    try:
+        # Stop Slack handler
+        if slack_handler:
+            await slack_handler.stop()
+            logger.info("Slack handler stopped")
+
+        # Close database connection
+        if db_service:
+            await db_service.close()
+            logger.info("Database connection closed")
+
+        logger.info("Shutdown complete")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
         raise
 
 

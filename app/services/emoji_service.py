@@ -47,6 +47,32 @@ class EmojiService:
             f"EmojiService initialized with cache_enabled={cache_enabled}, cache_ttl={cache_ttl}"
         )
 
+    async def load_initial_data(self) -> int:
+        """
+        Load initial emoji data from the JSON file.
+
+        Returns:
+            Number of emojis loaded
+        """
+        logger.info("Loading initial emoji data...")
+        try:
+            # Check if emojis already exist in database
+            count = await self.database_service.count_emojis()
+            if count > 0:
+                logger.info(
+                    f"Database already contains {count} emojis, skipping initial load"
+                )
+                return count
+
+            # Load from JSON file
+            loaded_count = await self.load_emojis_from_json_file("data/emojis.json")
+            logger.info(f"Successfully loaded {loaded_count} emojis")
+            return loaded_count
+        except Exception as e:
+            logger.error(f"Failed to load initial data: {e}")
+            # Non-critical error, continue without initial data
+            return 0
+
     async def find_similar_emojis(
         self,
         query_vector: List[float],
