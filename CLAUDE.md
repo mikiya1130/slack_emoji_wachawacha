@@ -39,6 +39,10 @@ docker-compose up -d --build
 
 # Initialize database schema
 # (Commands will be added during implementation)
+
+# Access pgweb database UI
+# Open http://localhost:8081 in your browser
+# The connection is pre-configured through docker-compose
 ```
 
 ### Testing (TDD Approach)

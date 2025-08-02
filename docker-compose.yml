@@ -40,6 +40,20 @@ services:
     networks:
       - emoji_bot_network
 
+  pgweb:
+    image: sosedoff/pgweb
+    container_name: emoji_bot_pgweb
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL=postgres://user:pass@db:5432/emoji_bot?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - emoji_bot_network
+
 volumes:
   postgres_data:
     driver: local
