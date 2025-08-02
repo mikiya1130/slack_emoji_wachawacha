@@ -6,7 +6,8 @@ TDD GREEN Phase: 最小限の実装でテストを通す
 絵文字データの管理とベクトル類似度検索を提供します。
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from app.models.emoji import EmojiData
 from app.utils.logging import get_logger
 
@@ -35,10 +36,12 @@ class EmojiService:
             cache_ttl: キャッシュの有効期限（秒）
         """
         self.database_service = database_service
+        self._db_service = database_service  # Alias for compatibility
         self.cache_enabled = cache_enabled
         self.cache_ttl = cache_ttl
         self.emoji_cache: Dict[str, EmojiData] = {}
         self.cache_loaded = False
+        self.openai_service = None  # Will be set later
 
         logger.info(
             f"EmojiService initialized with cache_enabled={cache_enabled}, cache_ttl={cache_ttl}"
@@ -361,3 +364,90 @@ class EmojiService:
         except Exception as e:
             logger.error(f"Error exporting emojis to JSON file {file_path}: {e}")
             return False
+
+    # OpenAI integration methods
+
+    async def search_by_text(
+        self,
+        text: str,
+        category: Optional[str] = None,
+        emotion_tone: Optional[str] = None,
+        limit: int = 3,
+    ) -> List[EmojiData]:
+        """
+        Search emojis by text using OpenAI embeddings
+
+        Args:
+            text: Search text
+            category: Optional category filter
+            emotion_tone: Optional emotion tone filter
+            limit: Maximum number of results
+
+        Returns:
+            List of similar emojis with similarity scores
+        """
+        if not text or not text.strip():
+            raise ValueError("Search text cannot be empty")
+
+        if not self.openai_service:
+            raise RuntimeError("OpenAI service not configured")
+
+        try:
+            # Generate embedding for the search text
+            embedding = await self.openai_service.get_embedding(text)
+
+            # Convert numpy array to list for database query
+            query_vector = embedding.tolist()
+
+            # Build filters if provided
+            filters = {}
+            if category:
+                filters["category"] = category
+            if emotion_tone:
+                filters["emotion_tone"] = emotion_tone
+
+            # Search for similar emojis
+            results = await self._db_service.find_similar_emojis(
+                query_vector, limit=limit, filters=filters if filters else None
+            )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error searching emojis by text: {e}")
+            raise
+
+    async def search_batch(
+        self, texts: List[str], limit: int = 3
+    ) -> List[List[EmojiData]]:
+        """
+        Search emojis for multiple texts in batch
+
+        Args:
+            texts: List of search texts
+            limit: Maximum number of results per text
+
+        Returns:
+            List of result lists, one for each text
+        """
+        if not self.openai_service:
+            raise RuntimeError("OpenAI service not configured")
+
+        try:
+            # Generate embeddings for all texts
+            embeddings = await self.openai_service.get_embeddings_batch(texts)
+
+            # Search for each embedding
+            batch_results = []
+            for embedding in embeddings:
+                query_vector = embedding.tolist()
+                results = await self._db_service.find_similar_emojis(
+                    query_vector, limit=limit
+                )
+                batch_results.append(results)
+
+            return batch_results
+
+        except Exception as e:
+            logger.error(f"Error in batch search: {e}")
+            raise
