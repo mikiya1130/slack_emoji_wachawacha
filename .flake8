@@ -1,3 +1,22 @@
 [flake8]
+# 最大行長
 max-line-length = 100
+
+# 除外するディレクトリ
 exclude = .git,__pycache__,venv,env,.venv,.env,build,dist
+
+# チェックするエラーコード（デフォルトに加えてW293も明示的に含める）
+# E: エラー
+# W: 警告（W293: blank line contains whitespace を含む）
+# F: PyFlakesエラー
+select = E,W,F
+
+# 無視するエラーコード
+# W503: line break before binary operator (PEP 8では現在推奨されていない)
+ignore = W503
+
+# インポート順序のチェック
+import-order-style = google
+
+# doctestのチェック
+doctests = True

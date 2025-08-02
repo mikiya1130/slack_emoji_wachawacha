@@ -5,9 +5,10 @@ This module provides common fixtures and configuration for all tests,
 following TDD best practices with proper mocking and test isolation.
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 # Import when dependencies are available
 # from app.config import Config
@@ -61,9 +62,11 @@ def mock_openai_service():
 @pytest.fixture
 def mock_emoji_service():
     """Mock EmojiService for testing."""
-    service = AsyncMock()
-    service.find_similar_emojis = AsyncMock()
-    service.load_emojis_from_file = AsyncMock()
+    from app.services.emoji_service import EmojiService
+
+    mock_db_service = AsyncMock()
+    service = EmojiService(database_service=mock_db_service)
+
     return service
 
 
@@ -121,13 +124,20 @@ def sample_embedding_vector():
     return [0.1] * 1536
 
 
-# Database fixtures (for integration tests)
 @pytest.fixture
-async def test_database():
-    """Test database fixture for integration tests."""
-    # TODO: Implement in Phase 2
-    # This will create a test database instance
-    pass
+def test_database_service():
+    """Create a mocked database service for testing without external dependencies."""
+    from unittest.mock import AsyncMock
+
+    return AsyncMock()
+
+
+@pytest.fixture
+def test_emoji_service(test_database_service):
+    """Create a mocked emoji service for testing without external dependencies"""
+    from unittest.mock import AsyncMock
+
+    return AsyncMock()
 
 
 @pytest.fixture

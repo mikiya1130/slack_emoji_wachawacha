@@ -6,5 +6,805 @@
     "emotion_tone": "positive",
     "usage_scene": "greeting, celebration, good news",
     "priority": 5
+  },
+  {
+    "code": ":thumbsup:",
+    "description": "Approval, agreement, good job, well done",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "approval, encouragement, agreement",
+    "priority": 5
+  },
+  {
+    "code": ":heart:",
+    "description": "Love, affection, care, appreciation",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "love, appreciation, gratitude",
+    "priority": 5
+  },
+  {
+    "code": ":thinking_face:",
+    "description": "Contemplation, consideration, pondering, thinking about something",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "questions, decision making, uncertainty",
+    "priority": 4
+  },
+  {
+    "code": ":fire:",
+    "description": "Excitement, energy, hot topic, trending, awesome, amazing",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "excitement, trending topics, high energy",
+    "priority": 4
+  },
+  {
+    "code": ":joy:",
+    "description": "Laughing with tears of joy, extremely happy, hilarious",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "humor, laughter, extreme joy",
+    "priority": 5
+  },
+  {
+    "code": ":sob:",
+    "description": "Crying, very sad, upset, disappointed",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "sadness, disappointment, failure",
+    "priority": 3
+  },
+  {
+    "code": ":clap:",
+    "description": "Applause, congratulations, celebration, good job",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "celebration, achievement, congratulations",
+    "priority": 5
+  },
+  {
+    "code": ":eyes:",
+    "description": "Looking, watching, observing, attention, interesting",
+    "category": "body",
+    "emotion_tone": "neutral",
+    "usage_scene": "attention, observation, curiosity",
+    "priority": 3
+  },
+  {
+    "code": ":pray:",
+    "description": "Prayer, please, thank you, hope, gratitude",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "request, gratitude, hope",
+    "priority": 4
+  },
+  {
+    "code": ":rocket:",
+    "description": "Launch, start, growth, progress, moving fast",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "launch, progress, achievement",
+    "priority": 4
+  },
+  {
+    "code": ":100:",
+    "description": "Perfect, hundred percent, completely agree, excellent",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "perfection, complete agreement, excellence",
+    "priority": 4
+  },
+  {
+    "code": ":sparkles:",
+    "description": "Magic, special, shiny, new, clean, fresh",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "new features, special moments, cleanliness",
+    "priority": 3
+  },
+  {
+    "code": ":wave:",
+    "description": "Hello, goodbye, waving hand, greeting",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "greeting, farewell, introduction",
+    "priority": 5
+  },
+  {
+    "code": ":tada:",
+    "description": "Party, celebration, congratulations, exciting news",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "celebration, party, milestone",
+    "priority": 5
+  },
+  {
+    "code": ":raised_hands:",
+    "description": "Celebration, praise, hallelujah, hooray",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "celebration, victory, praise",
+    "priority": 4
+  },
+  {
+    "code": ":muscle:",
+    "description": "Strength, power, workout, determination, you can do it",
+    "category": "body",
+    "emotion_tone": "positive",
+    "usage_scene": "encouragement, strength, achievement",
+    "priority": 4
+  },
+  {
+    "code": ":scream:",
+    "description": "Shock, surprise, fear, amazement",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "shock, surprise, fear",
+    "priority": 3
+  },
+  {
+    "code": ":star:",
+    "description": "Star, favorite, special, excellent, featured",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "rating, favorite, excellence",
+    "priority": 4
+  },
+  {
+    "code": ":brain:",
+    "description": "Intelligence, thinking, smart idea, knowledge",
+    "category": "body",
+    "emotion_tone": "neutral",
+    "usage_scene": "intelligence, ideas, learning",
+    "priority": 3
+  },
+  {
+    "code": ":bulb:",
+    "description": "Idea, innovation, bright idea, solution",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "ideas, innovation, solutions",
+    "priority": 4
+  },
+  {
+    "code": ":zap:",
+    "description": "Lightning, fast, quick, energy, power",
+    "category": "nature",
+    "emotion_tone": "positive",
+    "usage_scene": "speed, energy, quick action",
+    "priority": 3
+  },
+  {
+    "code": ":white_check_mark:",
+    "description": "Done, completed, checked, approved, correct",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "completion, approval, correctness",
+    "priority": 5
+  },
+  {
+    "code": ":x:",
+    "description": "Wrong, incorrect, no, cancel, stop",
+    "category": "symbol",
+    "emotion_tone": "negative",
+    "usage_scene": "rejection, error, cancellation",
+    "priority": 4
+  },
+  {
+    "code": ":warning:",
+    "description": "Warning, caution, attention, be careful",
+    "category": "symbol",
+    "emotion_tone": "neutral",
+    "usage_scene": "warning, caution, alert",
+    "priority": 4
+  },
+  {
+    "code": ":question:",
+    "description": "Question, confusion, inquiry, unknown",
+    "category": "symbol",
+    "emotion_tone": "neutral",
+    "usage_scene": "questions, confusion, inquiry",
+    "priority": 4
+  },
+  {
+    "code": ":exclamation:",
+    "description": "Important, attention, emphasis, alert",
+    "category": "symbol",
+    "emotion_tone": "neutral",
+    "usage_scene": "emphasis, importance, alert",
+    "priority": 3
+  },
+  {
+    "code": ":sweat_smile:",
+    "description": "Nervous laughter, embarrassed, awkward situation",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "embarrassment, nervousness, awkwardness",
+    "priority": 3
+  },
+  {
+    "code": ":sunglasses:",
+    "description": "Cool, confident, awesome, smooth",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "coolness, confidence, success",
+    "priority": 3
+  },
+  {
+    "code": ":grinning:",
+    "description": "Big smile, very happy, excited, cheerful",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "happiness, excitement, cheerfulness",
+    "priority": 4
+  },
+  {
+    "code": ":relieved:",
+    "description": "Relief, calm, peaceful, content",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "relief, calmness, contentment",
+    "priority": 3
+  },
+  {
+    "code": ":confused:",
+    "description": "Confused, puzzled, unsure, perplexed",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "confusion, uncertainty, puzzlement",
+    "priority": 3
+  },
+  {
+    "code": ":disappointed:",
+    "description": "Disappointed, let down, sad, unhappy",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "disappointment, sadness, failure",
+    "priority": 3
+  },
+  {
+    "code": ":worried:",
+    "description": "Worried, concerned, anxious, nervous",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "worry, concern, anxiety",
+    "priority": 3
+  },
+  {
+    "code": ":angry:",
+    "description": "Angry, mad, furious, upset",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "anger, frustration, upset",
+    "priority": 3
+  },
+  {
+    "code": ":star2:",
+    "description": "Glowing star, extra special, shining, outstanding",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "excellence, special achievement, outstanding",
+    "priority": 3
+  },
+  {
+    "code": ":ok_hand:",
+    "description": "OK, perfect, good, approved, chef's kiss",
+    "category": "gesture",
+    "emotion_tone": "positive",
+    "usage_scene": "approval, perfection, agreement",
+    "priority": 4
+  },
+  {
+    "code": ":point_up:",
+    "description": "Pointing up, attention, look here, important",
+    "category": "gesture",
+    "emotion_tone": "neutral",
+    "usage_scene": "attention, direction, emphasis",
+    "priority": 3
+  },
+  {
+    "code": ":point_down:",
+    "description": "Pointing down, look below, see below",
+    "category": "gesture",
+    "emotion_tone": "neutral",
+    "usage_scene": "direction, reference, attention",
+    "priority": 3
+  },
+  {
+    "code": ":point_left:",
+    "description": "Pointing left, look there, previous",
+    "category": "gesture",
+    "emotion_tone": "neutral",
+    "usage_scene": "direction, reference, navigation",
+    "priority": 3
+  },
+  {
+    "code": ":point_right:",
+    "description": "Pointing right, look there, next",
+    "category": "gesture",
+    "emotion_tone": "neutral",
+    "usage_scene": "direction, reference, navigation",
+    "priority": 3
+  },
+  {
+    "code": ":memo:",
+    "description": "Note, writing, documentation, reminder",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "documentation, notes, reminders",
+    "priority": 3
+  },
+  {
+    "code": ":book:",
+    "description": "Book, reading, documentation, manual, guide",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "documentation, learning, reference",
+    "priority": 3
+  },
+  {
+    "code": ":computer:",
+    "description": "Computer, work, programming, technology",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "work, technology, programming",
+    "priority": 3
+  },
+  {
+    "code": ":phone:",
+    "description": "Phone, call, communication, contact",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "communication, contact, call",
+    "priority": 3
+  },
+  {
+    "code": ":email:",
+    "description": "Email, message, communication, inbox",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "email, messaging, communication",
+    "priority": 3
+  },
+  {
+    "code": ":calendar:",
+    "description": "Calendar, schedule, date, appointment, deadline",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "scheduling, deadlines, appointments",
+    "priority": 3
+  },
+  {
+    "code": ":alarm_clock:",
+    "description": "Time, deadline, reminder, urgent, wake up",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "deadlines, reminders, urgency",
+    "priority": 3
+  },
+  {
+    "code": ":hourglass:",
+    "description": "Time running out, waiting, loading, patience",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "waiting, time limits, patience",
+    "priority": 3
+  },
+  {
+    "code": ":chart_with_upwards_trend:",
+    "description": "Growth, increase, success, improvement, progress",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "growth, success, improvement",
+    "priority": 4
+  },
+  {
+    "code": ":chart_with_downwards_trend:",
+    "description": "Decline, decrease, loss, downturn",
+    "category": "symbol",
+    "emotion_tone": "negative",
+    "usage_scene": "decline, loss, problems",
+    "priority": 3
+  },
+  {
+    "code": ":bar_chart:",
+    "description": "Analytics, data, statistics, report",
+    "category": "symbol",
+    "emotion_tone": "neutral",
+    "usage_scene": "data, analytics, reporting",
+    "priority": 3
+  },
+  {
+    "code": ":heavy_check_mark:",
+    "description": "Done, completed, approved, yes, correct",
+    "category": "symbol",
+    "emotion_tone": "positive",
+    "usage_scene": "completion, approval, success",
+    "priority": 4
+  },
+  {
+    "code": ":coffee:",
+    "description": "Coffee, break, morning, energy, work",
+    "category": "food",
+    "emotion_tone": "neutral",
+    "usage_scene": "break time, morning, energy",
+    "priority": 3
+  },
+  {
+    "code": ":pizza:",
+    "description": "Pizza, food, lunch, dinner, party",
+    "category": "food",
+    "emotion_tone": "positive",
+    "usage_scene": "food, meal time, celebration",
+    "priority": 3
+  },
+  {
+    "code": ":beer:",
+    "description": "Beer, celebration, party, after work, cheers",
+    "category": "food",
+    "emotion_tone": "positive",
+    "usage_scene": "celebration, party, relaxation",
+    "priority": 3
+  },
+  {
+    "code": ":gift:",
+    "description": "Gift, present, surprise, celebration, bonus",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "gifts, surprises, celebrations",
+    "priority": 3
+  },
+  {
+    "code": ":balloon:",
+    "description": "Balloon, party, celebration, birthday, festive",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "celebration, party, birthday",
+    "priority": 3
+  },
+  {
+    "code": ":confetti_ball:",
+    "description": "Confetti, big celebration, party, achievement",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "major celebration, achievement, party",
+    "priority": 4
+  },
+  {
+    "code": ":trophy:",
+    "description": "Trophy, winner, champion, achievement, first place",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "winning, achievement, competition",
+    "priority": 4
+  },
+  {
+    "code": ":medal:",
+    "description": "Medal, achievement, recognition, award",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "achievement, recognition, awards",
+    "priority": 3
+  },
+  {
+    "code": ":moneybag:",
+    "description": "Money, payment, salary, bonus, profit",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "money, payment, financial success",
+    "priority": 3
+  },
+  {
+    "code": ":credit_card:",
+    "description": "Payment, purchase, shopping, transaction",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "payment, shopping, transactions",
+    "priority": 3
+  },
+  {
+    "code": ":package:",
+    "description": "Package, delivery, shipment, product",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "delivery, shipping, products",
+    "priority": 3
+  },
+  {
+    "code": ":truck:",
+    "description": "Delivery, shipping, transport, moving",
+    "category": "vehicle",
+    "emotion_tone": "neutral",
+    "usage_scene": "delivery, shipping, transport",
+    "priority": 3
+  },
+  {
+    "code": ":airplane:",
+    "description": "Travel, flight, vacation, trip, journey",
+    "category": "vehicle",
+    "emotion_tone": "positive",
+    "usage_scene": "travel, vacation, trips",
+    "priority": 3
+  },
+  {
+    "code": ":sunrise:",
+    "description": "Morning, new day, fresh start, beginning",
+    "category": "nature",
+    "emotion_tone": "positive",
+    "usage_scene": "morning, new beginnings, fresh start",
+    "priority": 3
+  },
+  {
+    "code": ":sunny:",
+    "description": "Sunny, good weather, bright, positive, happy",
+    "category": "nature",
+    "emotion_tone": "positive",
+    "usage_scene": "good weather, positivity, happiness",
+    "priority": 3
+  },
+  {
+    "code": ":rainbow:",
+    "description": "Rainbow, diversity, hope, after the storm, beauty",
+    "category": "nature",
+    "emotion_tone": "positive",
+    "usage_scene": "hope, diversity, positivity",
+    "priority": 3
+  },
+  {
+    "code": ":umbrella:",
+    "description": "Protection, rain, preparation, coverage",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "protection, preparation, weather",
+    "priority": 3
+  },
+  {
+    "code": ":snowflake:",
+    "description": "Snow, cold, winter, unique, special",
+    "category": "nature",
+    "emotion_tone": "neutral",
+    "usage_scene": "winter, cold, uniqueness",
+    "priority": 3
+  },
+  {
+    "code": ":christmas_tree:",
+    "description": "Christmas, holiday, celebration, festive season",
+    "category": "plant",
+    "emotion_tone": "positive",
+    "usage_scene": "holidays, christmas, celebration",
+    "priority": 3
+  },
+  {
+    "code": ":jack_o_lantern:",
+    "description": "Halloween, spooky, October, trick or treat",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "halloween, spooky fun, october",
+    "priority": 3
+  },
+  {
+    "code": ":birthday:",
+    "description": "Birthday cake, celebration, anniversary, special day",
+    "category": "food",
+    "emotion_tone": "positive",
+    "usage_scene": "birthday, anniversary, celebration",
+    "priority": 4
+  },
+  {
+    "code": ":heart_eyes:",
+    "description": "Love, adoration, crush, amazing, beautiful",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "love, admiration, excitement",
+    "priority": 4
+  },
+  {
+    "code": ":wink:",
+    "description": "Winking, playful, flirty, joking, insider knowledge",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "playfulness, jokes, flirting",
+    "priority": 3
+  },
+  {
+    "code": ":stuck_out_tongue:",
+    "description": "Playful, teasing, joking, silly, fun",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "playfulness, teasing, fun",
+    "priority": 3
+  },
+  {
+    "code": ":sleeping:",
+    "description": "Sleeping, tired, boring, zzz, rest",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "tiredness, sleep, boredom",
+    "priority": 3
+  },
+  {
+    "code": ":yawning_face:",
+    "description": "Yawning, very tired, sleepy, boring",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "tiredness, boredom, sleepiness",
+    "priority": 3
+  },
+  {
+    "code": ":mask:",
+    "description": "Sick, protection, medical, health, safety",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "sickness, protection, health",
+    "priority": 3
+  },
+  {
+    "code": ":thermometer_face:",
+    "description": "Fever, sick, unwell, ill, temperature",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "sickness, fever, unwell",
+    "priority": 3
+  },
+  {
+    "code": ":nauseated_face:",
+    "description": "Sick, nauseous, disgusted, unwell",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "sickness, disgust, nausea",
+    "priority": 3
+  },
+  {
+    "code": ":sneezing_face:",
+    "description": "Sneezing, cold, allergies, sick",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "sickness, cold, allergies",
+    "priority": 3
+  },
+  {
+    "code": ":hot_face:",
+    "description": "Hot, overheated, sweating, hot weather",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "heat, hot weather, overheating",
+    "priority": 3
+  },
+  {
+    "code": ":cold_face:",
+    "description": "Cold, freezing, winter, chilly",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "cold, winter, freezing",
+    "priority": 3
+  },
+  {
+    "code": ":dizzy_face:",
+    "description": "Dizzy, confused, overwhelmed, stunned",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "confusion, overwhelm, dizziness",
+    "priority": 3
+  },
+  {
+    "code": ":exploding_head:",
+    "description": "Mind blown, shocked, amazed, incredible",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "amazement, shock, mind blown",
+    "priority": 3
+  },
+  {
+    "code": ":cowboy:",
+    "description": "Cowboy, yeehaw, wild west, adventurous",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "adventure, fun, wild west",
+    "priority": 3
+  },
+  {
+    "code": ":partying_face:",
+    "description": "Party, celebration, fun, exciting, festive",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "party, celebration, excitement",
+    "priority": 4
+  },
+  {
+    "code": ":nerd:",
+    "description": "Nerdy, geeky, smart, technical, studious",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "geekiness, intelligence, technical",
+    "priority": 3
+  },
+  {
+    "code": ":face_with_monocle:",
+    "description": "Examining, scrutinizing, suspicious, investigating",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "investigation, scrutiny, suspicion",
+    "priority": 3
+  },
+  {
+    "code": ":grimacing:",
+    "description": "Awkward, cringe, uncomfortable, yikes",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "awkwardness, discomfort, cringe",
+    "priority": 3
+  },
+  {
+    "code": ":lying_face:",
+    "description": "Lying, dishonest, pinocchio, not true",
+    "category": "emotion",
+    "emotion_tone": "negative",
+    "usage_scene": "lying, dishonesty, joking",
+    "priority": 3
+  },
+  {
+    "code": ":shushing_face:",
+    "description": "Shh, quiet, secret, keep quiet, silence",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "secrets, quiet, silence",
+    "priority": 3
+  },
+  {
+    "code": ":zipper_mouth:",
+    "description": "Secret, won't tell, sealed lips, confidential",
+    "category": "emotion",
+    "emotion_tone": "neutral",
+    "usage_scene": "secrets, confidentiality, silence",
+    "priority": 3
+  },
+  {
+    "code": ":money_mouth:",
+    "description": "Money, rich, wealth, profit, cash",
+    "category": "emotion",
+    "emotion_tone": "positive",
+    "usage_scene": "money, wealth, profit",
+    "priority": 3
+  },
+  {
+    "code": ":thermometer:",
+    "description": "Temperature, measurement, fever check, health",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "health, measurement, temperature",
+    "priority": 3
+  },
+  {
+    "code": ":bandaid:",
+    "description": "Healing, fix, patch, recovery, better",
+    "category": "object",
+    "emotion_tone": "positive",
+    "usage_scene": "healing, fixing, recovery",
+    "priority": 3
+  },
+  {
+    "code": ":stethoscope:",
+    "description": "Doctor, medical, health check, examination",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "medical, health, doctor",
+    "priority": 3
+  },
+  {
+    "code": ":pill:",
+    "description": "Medicine, medication, treatment, health",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "medicine, health, treatment",
+    "priority": 3
+  },
+  {
+    "code": ":syringe:",
+    "description": "Vaccine, injection, medical, doctor",
+    "category": "object",
+    "emotion_tone": "neutral",
+    "usage_scene": "medical, vaccine, injection",
+    "priority": 3
   }
 ]
