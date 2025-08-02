@@ -14,6 +14,9 @@ Features:
 import asyncio
 import time
 from typing import List, Dict, Any, Optional
+from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_sdk.errors import SlackApiError
 from app.utils.logging import get_logger
 from app.config import Config
 
@@ -48,11 +51,17 @@ class SlackHandler:
         self.openai_service = openai_service
         self.emoji_service = emoji_service
 
-        # Slack Bolt App（依存関係の問題により簡略化実装）
-        self.app = self._create_mock_app()
+        # 設定を取得
+        config = Config()
 
-        # Socket Mode Handler（依存関係の問題により簡略化実装）
-        self.socket_mode_handler = self._create_mock_socket_handler()
+        # Slack Bolt App（実際の実装）
+        self.app = App(token=config.slack.bot_token)
+
+        # Socket Mode Handler（実際の実装）
+        self.socket_mode_handler = SocketModeHandler(self.app, config.slack.app_token)
+
+        # メッセージハンドラーを登録
+        self._register_handlers()
 
         # 高度な機能用の設定（定数を使用）
         self.max_retries = DEFAULT_MAX_RETRIES
@@ -75,37 +84,61 @@ class SlackHandler:
             f"concurrent_limit={self.concurrent_limit}"
         )
 
-    def _create_mock_app(self):
-        """モックのSlack Bolt Appを作成（依存関係問題により簡略化）"""
+    def _register_handlers(self):
+        """Slackイベントハンドラーを登録"""
 
-        class MockSlackApp:
-            def __init__(self):
-                self.client = MockSlackClient()
-
-        return MockSlackApp()
-
-    def _create_mock_socket_handler(self):
-        """モックのSocket Mode Handlerを作成（依存関係問題により簡略化）"""
-
-        class MockSocketModeHandler:
-            def __init__(self):
-                pass
-
-        return MockSocketModeHandler()
+        # メッセージイベントのハンドラーを登録
+        @self.app.event("message")
+        async def handle_message_events(event, ack):
+            """Slackメッセージイベントを処理"""
+            try:
+                # イベントの確認応答を送信
+                await ack()
+                # メッセージ処理
+                await self.handle_message(event)
+            except Exception as e:
+                logger.error(f"Error in message event handler: {e}")
 
     async def start(self):
         """Start the Slack handler and Socket Mode connection."""
         logger.info("Starting Slack handler...")
-        # In a real implementation, this would start the Socket Mode handler
-        # For now, just log that we're started
-        logger.info("Slack handler started successfully")
+        try:
+            # Socket Mode接続を非同期で開始
+            # SocketModeHandlerは同期的なので、別スレッドで実行
+            import threading
+
+            self._socket_mode_thread = threading.Thread(
+                target=self.socket_mode_handler.start, daemon=True
+            )
+            self._socket_mode_thread.start()
+
+            # 接続が確立されるまで少し待つ
+            await asyncio.sleep(2)
+
+            logger.info("Slack handler started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start Slack handler: {e}")
+            raise
 
     async def stop(self):
         """Stop the Slack handler and close connections."""
         logger.info("Stopping Slack handler...")
-        # In a real implementation, this would close Socket Mode connection
-        # For now, just log that we're stopped
-        logger.info("Slack handler stopped successfully")
+        try:
+            # Socket Mode接続を閉じる
+            if hasattr(self, "socket_mode_handler"):
+                self.socket_mode_handler.close()
+
+            # スレッドの終了を待つ
+            if (
+                hasattr(self, "_socket_mode_thread")
+                and self._socket_mode_thread.is_alive()
+            ):
+                self._socket_mode_thread.join(timeout=5)
+
+            logger.info("Slack handler stopped successfully")
+        except Exception as e:
+            logger.error(f"Error stopping Slack handler: {e}")
+            # エラーがあっても停止プロセスは継続
 
     async def handle_message(self, message: Dict[str, Any]) -> None:
         """
@@ -293,13 +326,17 @@ class SlackHandler:
         Raises:
             Exception: 最大リトライ回数に達した場合
         """
-        last_error = None
+        last_error: Optional[Exception] = None
 
         for attempt in range(self.max_retries + 1):  # 初回 + リトライ
             try:
-                # Slack APIを呼び出し
-                response = await self.app.client.reactions_add(
-                    channel=channel, timestamp=timestamp, name=emoji_name
+                # Slack APIを呼び出し（同期APIを非同期でラップ）
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.app.client.reactions_add(
+                        channel=channel, timestamp=timestamp, name=emoji_name
+                    ),
                 )
 
                 # レート制限情報を記録
@@ -318,9 +355,18 @@ class SlackHandler:
 
                 return  # 成功時は即座にリターン
 
+            except SlackApiError as e:
+                last_error = e
+                error_msg = e.response.get("error", str(e))
             except Exception as e:
+                # SlackApiError以外の例外をキャッチ
                 last_error = e
                 error_msg = str(e)
+
+                # 既にリアクション済みの場合は成功として扱う
+                if "already_reacted" in error_msg:
+                    logger.debug(f"Reaction {emoji_name} already exists on message")
+                    return  # 成功として扱う
 
                 # リトライ可能なエラーかチェック
                 if self._is_retryable_error(error_msg) and attempt < self.max_retries:
@@ -343,7 +389,10 @@ class SlackHandler:
                         )
 
                     # 最終的なエラーを再発生
-                    raise last_error
+                    if last_error:
+                        raise last_error
+                    else:
+                        raise Exception(f"Failed to add reaction {emoji_name}")
 
     def _is_retryable_error(self, error_msg: str) -> bool:
         """
@@ -395,14 +444,13 @@ class SlackHandler:
             response: Slack APIのレスポンス
         """
         try:
-            # Check if response has headers and it's not an AsyncMock
-            if hasattr(response, "headers") and not hasattr(
-                response.headers, "_mock_name"
-            ):
+            # Slack SDKのレスポンスからヘッダー情報を取得
+            if hasattr(response, "headers"):
                 headers = response.headers
                 self.rate_limit_info = {
                     "remaining": headers.get("X-Rate-Limit-Remaining"),
                     "reset": headers.get("X-Rate-Limit-Reset"),
+                    "retry_after": headers.get("Retry-After"),
                     "last_updated": time.time(),
                 }
                 logger.debug(f"Rate limit info updated: {self.rate_limit_info}")
@@ -610,38 +658,3 @@ class SlackHandler:
 
         # Add current timestamp
         self.rate_limit_window.append(now)
-
-
-class MockSlackClient:
-    """Mock Slack Client for testing（依存関係問題により）"""
-
-    def __init__(self):
-        from unittest.mock import AsyncMock
-
-        self.reactions_add_calls = []
-        # テスト互換性のためAsyncMockを使用
-        self.reactions_add = AsyncMock(side_effect=self._reactions_add_impl)
-
-    async def _reactions_add_impl(self, channel: str, timestamp: str, name: str):
-        """Mock reactions_add API call implementation"""
-        call_data = {"channel": channel, "timestamp": timestamp, "name": name}
-        self.reactions_add_calls.append(call_data)
-        logger.debug(f"Mock reactions_add called: {call_data}")
-
-        # SlackApiErrorのシミュレーション（テスト用）
-        if hasattr(self, "_should_raise_error") and self._should_raise_error:
-            from unittest.mock import Mock
-
-            error = Mock()
-            error.response = {"error": "already_reacted"}
-            raise error
-
-        # Return a proper mock response with headers
-        from unittest.mock import Mock
-
-        response = Mock()
-        response.headers = {
-            "X-Rate-Limit-Remaining": "100",
-            "X-Rate-Limit-Reset": "1234567890",
-        }
-        return response

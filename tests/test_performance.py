@@ -8,7 +8,7 @@ import pytest
 import pytest_asyncio
 import asyncio
 import time
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 import numpy as np
 
 from app.services.slack_handler import SlackHandler
@@ -80,12 +80,14 @@ class TestPerformance:
     def mock_slack_app(self):
         """Mock Slack app with realistic latency"""
         app = Mock()
-        client = AsyncMock()
+        client = Mock()
         app.client = client
 
-        async def mock_reactions_add(*args, **kwargs):
-            # Simulate Slack API latency
-            await asyncio.sleep(0.05)  # 50ms per reaction
+        def mock_reactions_add(*args, **kwargs):
+            # Simulate Slack API latency with synchronous sleep
+            import time
+
+            time.sleep(0.05)  # 50ms per reaction
             response = Mock()
             response.headers = {
                 "X-Rate-Limit-Remaining": "100",
@@ -93,18 +95,44 @@ class TestPerformance:
             }
             return response
 
-        client.reactions_add = mock_reactions_add
+        client.reactions_add = Mock(side_effect=mock_reactions_add)
         return app
 
     @pytest_asyncio.fixture
     async def slack_handler(self, mock_openai_service, mock_database_service):
         """Create SlackHandler with mocked services"""
-        emoji_service = EmojiService(mock_database_service)
-        emoji_service.openai_service = mock_openai_service
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
 
-        handler = SlackHandler(mock_openai_service, emoji_service)
-        handler.set_emoji_service(emoji_service)
-        return handler
+            # Mock App instance
+            mock_app = Mock()
+            mock_client = Mock()
+            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_app.client = mock_client
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
+
+            # Mock SocketModeHandler instance
+            mock_socket_handler = Mock()
+            mock_socket_handler.start = Mock()
+            mock_socket_handler.close = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
+
+            # Mock Config instance
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
+
+            emoji_service = EmojiService(mock_database_service)
+            emoji_service.openai_service = mock_openai_service
+
+            handler = SlackHandler(mock_openai_service, emoji_service)
+            handler.set_emoji_service(emoji_service)
+            return handler
 
     @pytest.mark.asyncio
     async def test_message_processing_under_5_seconds(

@@ -198,10 +198,8 @@ class TestEmojiDataLoading:
         # Mock service methods using patch with AsyncMock
         count_mock = AsyncMock(side_effect=[0, 3])
         load_mock = AsyncMock(return_value=saved_emojis)
-        
-        with patch.object(
-            mock_emoji_service, "count_emojis", count_mock
-        ), patch.object(
+
+        with patch.object(mock_emoji_service, "count_emojis", count_mock), patch.object(
             mock_emoji_service,
             "load_and_save_emojis_from_json",
             load_mock,

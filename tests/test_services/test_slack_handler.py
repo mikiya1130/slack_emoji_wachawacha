@@ -7,8 +7,7 @@ SlackHandlerの期待される動作を定義します。
 
 import pytest
 import time
-import asyncio
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, patch
 
 
 class TestSlackHandler:
@@ -45,24 +44,76 @@ class TestSlackHandler:
     @pytest.fixture
     def slack_handler(self, mock_openai_service, mock_emoji_service):
         """SlackHandlerインスタンス（実装後に有効化）"""
-        # This will fail initially (RED phase)
-        from app.services.slack_handler import SlackHandler
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
 
-        return SlackHandler(mock_openai_service, mock_emoji_service)
+            # Mock App instance
+            mock_app = Mock()
+            mock_client = Mock()
+            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_app.client = mock_client
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
+
+            # Mock SocketModeHandler instance
+            mock_socket_handler = Mock()
+            mock_socket_handler.start = Mock()
+            mock_socket_handler.close = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
+
+            # Mock Config instance
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
+
+            from app.services.slack_handler import SlackHandler
+
+            handler = SlackHandler(mock_openai_service, mock_emoji_service)
+
+            # Inject the mocked app to the handler for test assertions
+            handler.app = mock_app
+            handler.socket_mode_handler = mock_socket_handler
+
+            return handler
 
     def test_slack_handler_initialization(
         self, mock_openai_service, mock_emoji_service
     ):
         """SlackHandlerの初期化テスト"""
-        # This should fail initially (RED phase)
-        from app.services.slack_handler import SlackHandler
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
 
-        handler = SlackHandler(mock_openai_service, mock_emoji_service)
+            # Mock Config
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
 
-        # 依存関係が正しく設定されることを確認
-        assert handler.openai_service == mock_openai_service
-        assert handler.emoji_service == mock_emoji_service
-        assert handler.app is not None  # Slack Bolt appが初期化される
+            # Mock App
+            mock_app = Mock()
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
+
+            # Mock SocketModeHandler
+            mock_socket_handler = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
+
+            from app.services.slack_handler import SlackHandler
+
+            handler = SlackHandler(mock_openai_service, mock_emoji_service)
+
+            # 依存関係が正しく設定されることを確認
+            assert handler.openai_service == mock_openai_service
+            assert handler.emoji_service == mock_emoji_service
+            assert handler.app is not None  # Slack Bolt appが初期化される
+            assert handler.socket_mode_handler is not None
 
     @pytest.mark.asyncio
     async def test_handle_message_with_valid_message(
@@ -146,16 +197,20 @@ class TestSlackHandler:
         emojis = [":smile:"]
 
         # Slack API エラーをシミュレート
-        from slack_sdk.errors import SlackApiError
+        class MockSlackApiError(Exception):
+            def __init__(self, message, response):
+                super().__init__(message)
+                self.response = response
 
-        slack_handler.app.client.reactions_add.side_effect = SlackApiError(
-            "Error", {"error": "already_reacted"}
-        )
+        with patch("app.services.slack_handler.SlackApiError", MockSlackApiError):
+            slack_handler.app.client.reactions_add = Mock(
+                side_effect=MockSlackApiError("Error", {"error": "already_reacted"})
+            )
 
         # エラーが適切にハンドリングされることを確認（例外が上がらない）
         try:
             await slack_handler.add_reactions(channel, timestamp, emojis)
-        except SlackApiError:
+        except Exception:
             pytest.fail("SlackApiError should be handled gracefully")
 
     @pytest.mark.asyncio
@@ -228,9 +283,41 @@ class TestSlackHandlerReactionFeatures:
         self, mock_openai_service, mock_emoji_service
     ):
         """リトライ機能を持つSlackHandler（実装されていないため失敗するはず）"""
-        from app.services.slack_handler import SlackHandler
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
 
-        return SlackHandler(mock_openai_service, mock_emoji_service)
+            # Mock App instance
+            mock_app = Mock()
+            mock_client = Mock()
+            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_app.client = mock_client
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
+
+            # Mock SocketModeHandler instance
+            mock_socket_handler = Mock()
+            mock_socket_handler.start = Mock()
+            mock_socket_handler.close = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
+
+            # Mock Config instance
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
+
+            from app.services.slack_handler import SlackHandler
+
+            handler = SlackHandler(mock_openai_service, mock_emoji_service)
+
+            # Inject the mocked app to the handler for test assertions
+            handler.app = mock_app
+            handler.socket_mode_handler = mock_socket_handler
+
+            return handler
 
     @pytest.mark.asyncio
     async def test_add_reactions_with_retry_logic(
@@ -250,14 +337,14 @@ class TestSlackHandlerReactionFeatures:
         # 最初の2回は失敗、3回目は成功するようにモック設定
         call_count = 0
 
-        async def mock_reactions_add(*args, **kwargs):
+        def mock_reactions_add(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
                 raise MockRateLimitError()
-            return None
+            return {"ok": True}
 
-        handler.app.client.reactions_add = AsyncMock(side_effect=mock_reactions_add)
+        handler.app.client.reactions_add = Mock(side_effect=mock_reactions_add)
 
         # リトライ処理が実装されていない場合、このテストは失敗するはず
         await handler.add_reactions("C123456789", "1234567890.123456", [":smile:"])
@@ -286,7 +373,7 @@ class TestSlackHandlerReactionFeatures:
             def __str__(self):
                 return "rate_limited"
 
-        handler.app.client.reactions_add = AsyncMock(side_effect=MockRateLimitError())
+        handler.app.client.reactions_add = Mock(side_effect=MockRateLimitError())
 
         # 指数バックオフが実装されていない場合、このテストは失敗するはず
         await handler.add_reactions("C123456789", "1234567890.123456", [":smile:"])
@@ -315,7 +402,7 @@ class TestSlackHandlerReactionFeatures:
             def __str__(self):
                 return "rate_limited"
 
-        handler.app.client.reactions_add = AsyncMock(side_effect=MockPersistentError())
+        handler.app.client.reactions_add = Mock(side_effect=MockPersistentError())
 
         # 最大リトライ回数制限が実装されていない場合、このテストは失敗するはず
         await handler.add_reactions("C123456789", "1234567890.123456", [":smile:"])
@@ -337,11 +424,11 @@ class TestSlackHandlerReactionFeatures:
         start_time = time.time()
 
         # 各リアクションに0.1秒の遅延を追加
-        async def mock_delayed_reaction(*args, **kwargs):
-            await asyncio.sleep(0.1)
-            return None
+        def mock_delayed_reaction(*args, **kwargs):
+            time.sleep(0.1)  # 同期的なsleepを使用
+            return {"ok": True}
 
-        handler.app.client.reactions_add = AsyncMock(side_effect=mock_delayed_reaction)
+        handler.app.client.reactions_add = Mock(side_effect=mock_delayed_reaction)
 
         # 5個の絵文字を処理
         emojis = [":smile:", ":thumbsup:", ":heart:", ":fire:", ":star:"]
@@ -372,7 +459,7 @@ class TestSlackHandlerReactionFeatures:
                     "X-Rate-Limit-Reset": str(int(time.time()) + 60),
                 }
 
-        handler.app.client.reactions_add = AsyncMock(return_value=MockResponse())
+        handler.app.client.reactions_add = Mock(return_value=MockResponse())
 
         # レート制限監視が実装されていない場合、このテストは失敗するはず
         await handler.add_reactions("C123456789", "1234567890.123456", [":smile:"])
@@ -390,16 +477,46 @@ class TestSlackHandlerErrorHandling:
     @pytest.fixture
     def slack_handler_with_error_services(self):
         """エラーを発生させるサービスを持つSlackHandler"""
-        from app.services.slack_handler import SlackHandler
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
 
-        # エラーを発生させるモックサービス
-        openai_service = AsyncMock()
-        openai_service.get_embedding.side_effect = Exception("OpenAI API Error")
+            # Mock App instance
+            mock_app = Mock()
+            mock_client = Mock()
+            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_app.client = mock_client
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
 
-        emoji_service = AsyncMock()
-        emoji_service.find_similar_emojis.side_effect = Exception("Database Error")
+            # Mock SocketModeHandler instance
+            mock_socket_handler = Mock()
+            mock_socket_handler.start = Mock()
+            mock_socket_handler.close = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
 
-        return SlackHandler(openai_service, emoji_service)
+            # Mock Config instance
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
+
+            from app.services.slack_handler import SlackHandler
+
+            # エラーを発生させるモックサービス
+            openai_service = AsyncMock()
+            openai_service.get_embedding.side_effect = Exception("OpenAI API Error")
+
+            emoji_service = AsyncMock()
+            emoji_service.find_similar_emojis.side_effect = Exception("Database Error")
+
+            handler = SlackHandler(openai_service, emoji_service)
+            handler.app = mock_app
+            handler.socket_mode_handler = mock_socket_handler
+
+            return handler
 
     @pytest.mark.asyncio
     async def test_handle_message_with_openai_error(

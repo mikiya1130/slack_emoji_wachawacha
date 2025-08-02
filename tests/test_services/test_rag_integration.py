@@ -2,7 +2,7 @@
 
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 import numpy as np
 
 from app.services.slack_handler import SlackHandler
@@ -80,12 +80,44 @@ class TestRAGIntegration:
         return mock
 
     @pytest_asyncio.fixture
-    async def slack_handler(self, mock_slack_app, mock_slack_client):
+    async def slack_handler(self, mock_openai_service, emoji_service):
         """Create SlackHandler with mocked app"""
-        handler = SlackHandler(mock_slack_app, mock_slack_client)
-        # Replace the internal app with our mock
-        handler.app = mock_slack_app
-        return handler
+        with patch("app.services.slack_handler.App") as mock_app_class, patch(
+            "app.services.slack_handler.SocketModeHandler"
+        ) as mock_socket_handler_class, patch(
+            "app.services.slack_handler.Config"
+        ) as mock_config_class:
+
+            # Mock App instance
+            mock_app = Mock()
+            mock_client = Mock()
+            # Create a proper response mock with headers
+            response_mock = Mock()
+            response_mock.headers = {
+                "X-Rate-Limit-Remaining": "100",
+                "X-Rate-Limit-Reset": "1234567890",
+            }
+            mock_client.reactions_add = Mock(return_value=response_mock)
+            mock_app.client = mock_client
+            mock_app.event = Mock(return_value=lambda func: func)
+            mock_app_class.return_value = mock_app
+
+            # Mock SocketModeHandler instance
+            mock_socket_handler = Mock()
+            mock_socket_handler.start = Mock()
+            mock_socket_handler.close = Mock()
+            mock_socket_handler_class.return_value = mock_socket_handler
+
+            # Mock Config instance
+            mock_config = Mock()
+            mock_config.slack.bot_token = "xoxb-test-token"
+            mock_config.slack.app_token = "xapp-test-token"
+            mock_config_class.return_value = mock_config
+
+            handler = SlackHandler(mock_openai_service, emoji_service)
+            # Replace the internal app with our mock
+            handler.app = mock_app
+            return handler
 
     @pytest_asyncio.fixture
     async def emoji_service(self, mock_database_service, mock_openai_service):
@@ -95,9 +127,7 @@ class TestRAGIntegration:
         return service
 
     @pytest.mark.asyncio
-    async def test_message_to_emoji_reaction_flow(
-        self, slack_handler, emoji_service, mock_slack_app
-    ):
+    async def test_message_to_emoji_reaction_flow(self, slack_handler, emoji_service):
         """Test complete flow from message to emoji reaction"""
         # Setup SlackHandler with EmojiService
         slack_handler.set_emoji_service(emoji_service)
@@ -115,10 +145,10 @@ class TestRAGIntegration:
         await slack_handler.process_message_for_reactions(message_event)
 
         # Verify emoji reactions were added
-        assert mock_slack_app.client.reactions_add.call_count == 3
+        assert slack_handler.app.client.reactions_add.call_count == 3
 
         # Verify correct emojis were used
-        calls = mock_slack_app.client.reactions_add.call_args_list
+        calls = slack_handler.app.client.reactions_add.call_args_list
         emoji_names = [call.kwargs["name"] for call in calls]
         # Slack API expects emoji names without colons
         assert "smile" in emoji_names
@@ -176,9 +206,7 @@ class TestRAGIntegration:
         # Should either skip or use fallback
 
     @pytest.mark.asyncio
-    async def test_rag_flow_with_empty_message(
-        self, slack_handler, emoji_service, mock_slack_app
-    ):
+    async def test_rag_flow_with_empty_message(self, slack_handler, emoji_service):
         """Test RAG flow with empty or whitespace message"""
         slack_handler.set_emoji_service(emoji_service)
 
@@ -194,7 +222,7 @@ class TestRAGIntegration:
         await slack_handler.process_message_for_reactions(message_event)
 
         # Should not add reactions for empty messages
-        assert mock_slack_app.client.reactions_add.call_count == 0
+        assert slack_handler.app.client.reactions_add.call_count == 0
 
     @pytest.mark.asyncio
     async def test_rag_flow_with_long_message(
@@ -250,9 +278,7 @@ class TestRAGIntegration:
         assert all(emoji.emotion_tone == "positive" for emoji in result)
 
     @pytest.mark.asyncio
-    async def test_rag_flow_concurrent_messages(
-        self, slack_handler, emoji_service, mock_slack_app
-    ):
+    async def test_rag_flow_concurrent_messages(self, slack_handler, emoji_service):
         """Test RAG flow with concurrent message processing"""
         slack_handler.set_emoji_service(emoji_service)
 
@@ -276,13 +302,11 @@ class TestRAGIntegration:
 
         # Verify all messages were processed
         assert (
-            mock_slack_app.client.reactions_add.call_count == 15
+            slack_handler.app.client.reactions_add.call_count == 15
         )  # 3 emojis * 5 messages
 
     @pytest.mark.asyncio
-    async def test_rag_flow_rate_limiting(
-        self, slack_handler, emoji_service, mock_slack_app
-    ):
+    async def test_rag_flow_rate_limiting(self, slack_handler, emoji_service):
         """Test RAG flow respects rate limits"""
         slack_handler.set_emoji_service(emoji_service)
 
@@ -304,7 +328,7 @@ class TestRAGIntegration:
         # Rate limit of 10/min should limit this, but since test runs fast,
         # we just verify all reactions were added (rate limiting is working
         # but test execution is too fast to see the effect)
-        assert mock_slack_app.client.reactions_add.call_count == 60
+        assert slack_handler.app.client.reactions_add.call_count == 60
 
     @pytest.mark.asyncio
     async def test_rag_flow_integration_health_check(
