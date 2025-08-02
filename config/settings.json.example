@@ -1,0 +1,43 @@
+{
+  "environment": "development",
+  "slack": {
+    "socket_mode_enabled": true,
+    "request_timeout": 30,
+    "max_retries": 3
+  },
+  "openai": {
+    "model": "text-embedding-3-small",
+    "embedding_dimension": 1536,
+    "request_timeout": 60,
+    "max_retries": 3,
+    "base_delay": 1.0
+  },
+  "database": {
+    "pool_size": 10,
+    "min_pool_size": 2,
+    "max_pool_size": 20,
+    "connection_timeout": 30,
+    "command_timeout": 60
+  },
+  "emoji": {
+    "default_reaction_count": 3,
+    "cache_enabled": true,
+    "cache_ttl": 3600,
+    "similarity_threshold": 0.7,
+    "max_concurrent_reactions": 10
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "human",
+    "use_colors": true,
+    "log_file": null,
+    "max_file_size": 10485760,
+    "backup_count": 5
+  },
+  "monitoring": {
+    "enabled": true,
+    "export_interval": 60,
+    "metrics_port": 9090,
+    "health_check_interval": 30
+  }
+}

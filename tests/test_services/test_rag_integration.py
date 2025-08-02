@@ -70,8 +70,13 @@ class TestRAGIntegration:
     def mock_openai_service(self):
         """Mock OpenAI service"""
         mock = AsyncMock(spec=OpenAIService)
-        # Mock embedding generation
-        mock.get_embedding.return_value = np.random.rand(1536)
+        # Mock embedding generation - return numpy array properly
+        mock.get_embedding = AsyncMock(
+            return_value=np.array([0.1] * 1536, dtype=np.float32)
+        )
+        mock.get_embeddings_batch = AsyncMock(
+            return_value=[np.array([0.1] * 1536, dtype=np.float32) for _ in range(3)]
+        )
         return mock
 
     @pytest_asyncio.fixture

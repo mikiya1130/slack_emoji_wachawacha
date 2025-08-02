@@ -54,8 +54,19 @@ def mock_database_service():
 @pytest.fixture
 def mock_openai_service():
     """Mock OpenAIService for testing."""
+    import numpy as np
+
     service = AsyncMock()
-    service.get_embedding = AsyncMock(return_value=[0.1] * 1536)
+    # Return numpy array as the real service does
+    service.get_embedding = AsyncMock(
+        return_value=np.array([0.1] * 1536, dtype=np.float32)
+    )
+    service.get_embedding_with_metadata = AsyncMock(
+        return_value=(np.array([0.1] * 1536, dtype=np.float32), {"model": "test-model"})
+    )
+    service.get_embeddings_batch = AsyncMock(
+        return_value=[np.array([0.1] * 1536, dtype=np.float32)]
+    )
     return service
 
 

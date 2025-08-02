@@ -170,22 +170,25 @@ class TestEndToEnd:
             "app.main.OpenAIService"
         ) as mock_openai_service_class:
             # Create mock instances
-            mock_handler = AsyncMock()
-            mock_db_service = AsyncMock()
-            mock_emoji_service = AsyncMock()
-            mock_openai_service = AsyncMock()
+            mock_handler = Mock()  # SlackHandler itself is not async
+            mock_handler.start = AsyncMock()  # But start() is async
+            mock_handler.set_emoji_service = Mock()  # set_emoji_service is not async
+            
+            mock_db_service = Mock()
+            mock_db_service.connect = AsyncMock()
+            mock_db_service.initialize_schema = AsyncMock()
+            
+            mock_emoji_service = Mock()
+            mock_emoji_service.load_initial_data = AsyncMock()
+            mock_emoji_service.openai_service = None  # Will be set in main
+            
+            mock_openai_service = Mock()
 
             # Configure constructors
             mock_handler_class.return_value = mock_handler
             mock_db_service_class.return_value = mock_db_service
             mock_emoji_service_class.return_value = mock_emoji_service
             mock_openai_service_class.return_value = mock_openai_service
-
-            # Configure mock behaviors
-            mock_handler.start = AsyncMock()
-            mock_db_service.connect = AsyncMock()
-            mock_db_service.initialize_schema = AsyncMock()
-            mock_emoji_service.load_initial_data = AsyncMock()
 
             # Import and run main
             from app.main import main
@@ -378,12 +381,11 @@ class TestEndToEnd:
         with patch.dict(os.environ, {}, clear=True):
             from app.config import Config as AppConfig
 
-            # Clear cached class attributes to force re-reading from env
-            AppConfig.SLACK_BOT_TOKEN = ""
-            AppConfig.SLACK_APP_TOKEN = ""
-            AppConfig.OPENAI_API_KEY = ""
+            # Clear cached instance to force re-reading from env
+            AppConfig._instance = None
+            AppConfig._loaded = False
 
-            with pytest.raises(ValueError, match="Missing required configuration"):
+            with pytest.raises(ValueError, match="Configuration validation failed"):
                 AppConfig.validate()
 
         # Test partial configuration
@@ -393,6 +395,8 @@ class TestEndToEnd:
             # Missing OPENAI_API_KEY
         }
         with patch.dict(os.environ, partial_env, clear=True):
+            AppConfig._instance = None
+            AppConfig._loaded = False
             with pytest.raises(ValueError):
                 AppConfig.validate()
 
@@ -404,15 +408,14 @@ class TestEndToEnd:
         with patch("app.main.SlackHandler") as mock_handler_class, patch(
             "app.main.DatabaseService"
         ) as mock_db_service_class:
-            mock_handler = AsyncMock()
-            mock_db_service = AsyncMock()
+            mock_handler = Mock()
+            mock_handler.stop = AsyncMock()  # stop() is async
+            
+            mock_db_service = Mock()
+            mock_db_service.close = AsyncMock()  # close() is async
 
             mock_handler_class.return_value = mock_handler
             mock_db_service_class.return_value = mock_db_service
-
-            # Configure shutdown methods
-            mock_handler.stop = AsyncMock()
-            mock_db_service.close = AsyncMock()
 
             # Import and set globals
             import app.main

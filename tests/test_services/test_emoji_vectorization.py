@@ -20,25 +20,35 @@ class TestEmojiVectorization:
         return AsyncMock(spec=DatabaseService)
 
     @pytest.fixture
-    def mock_openai_service(self):
+    def mock_openai_service_local(self):
         """Mock OpenAI service"""
         mock = AsyncMock(spec=OpenAIService)
-        # Mock embedding generation
-        mock.get_embedding.return_value = np.random.rand(1536)
-        mock.get_embeddings_batch.return_value = [
-            np.random.rand(1536) for _ in range(3)
-        ]
+        # Mock embedding generation - use numpy arrays as AsyncMock return values
+        mock.get_embedding = AsyncMock(
+            return_value=np.array([0.1] * 1536, dtype=np.float32)
+        )
+        mock.get_embeddings_batch = AsyncMock(
+            return_value=[np.array([0.1] * 1536, dtype=np.float32) for _ in range(3)]
+        )
+        mock.get_embedding_with_metadata = AsyncMock(
+            return_value=(
+                np.array([0.1] * 1536, dtype=np.float32),
+                {"model": "test-model"},
+            )
+        )
         return mock
 
     @pytest_asyncio.fixture
-    async def emoji_service(self, mock_database_service, mock_openai_service):
+    async def emoji_service(self, mock_database_service, mock_openai_service_local):
         """Create EmojiService with mocked dependencies"""
         service = EmojiService(mock_database_service)
-        service.openai_service = mock_openai_service
+        service.openai_service = mock_openai_service_local
         return service
 
     @pytest.mark.asyncio
-    async def test_vectorize_single_emoji(self, emoji_service, mock_openai_service):
+    async def test_vectorize_single_emoji(
+        self, emoji_service, mock_openai_service_local
+    ):
         """Test vectorizing a single emoji"""
         # Create test emoji
         emoji = EmojiData(
@@ -54,7 +64,9 @@ class TestEmojiVectorization:
         result = await emoji_service.vectorize_emoji(emoji)
 
         # Verify OpenAI service was called with the description
-        mock_openai_service.get_embedding.assert_called_once_with(emoji.description)
+        mock_openai_service_local.get_embedding.assert_called_once_with(
+            emoji.description
+        )
 
         # Verify result contains embedding
         assert result is not None
@@ -63,7 +75,7 @@ class TestEmojiVectorization:
 
     @pytest.mark.asyncio
     async def test_vectorize_emoji_batch(
-        self, emoji_service, mock_openai_service, mock_database_service
+        self, emoji_service, mock_openai_service_local, mock_database_service
     ):
         """Test vectorizing multiple emojis in batch"""
         # Create test emojis
@@ -95,7 +107,7 @@ class TestEmojiVectorization:
         await emoji_service.vectorize_emojis_batch(batch_size=2)
 
         # Verify OpenAI service was called with batches
-        assert mock_openai_service.get_embeddings_batch.call_count > 0
+        assert mock_openai_service_local.get_embeddings_batch.call_count > 0
 
         # Verify database update was called
         assert mock_database_service.batch_update_embeddings.called
@@ -164,11 +176,11 @@ class TestEmojiVectorization:
 
     @pytest.mark.asyncio
     async def test_vectorize_error_handling(
-        self, emoji_service, mock_openai_service, mock_database_service
+        self, emoji_service, mock_openai_service_local, mock_database_service
     ):
         """Test error handling during vectorization"""
         # Mock OpenAI service to raise error
-        mock_openai_service.get_embedding.side_effect = Exception("API Error")
+        mock_openai_service_local.get_embedding.side_effect = Exception("API Error")
 
         emoji = EmojiData(id=1, code=":error:", description="This will cause an error")
 
@@ -180,11 +192,11 @@ class TestEmojiVectorization:
 
     @pytest.mark.asyncio
     async def test_vectorize_batch_partial_failure(
-        self, emoji_service, mock_openai_service, mock_database_service
+        self, emoji_service, mock_openai_service_local, mock_database_service
     ):
         """Test batch vectorization with partial failures"""
         # Mock to fail on second batch
-        mock_openai_service.get_embeddings_batch.side_effect = [
+        mock_openai_service_local.get_embeddings_batch.side_effect = [
             [np.random.rand(1536) for _ in range(2)],  # First batch succeeds
             Exception("API Error"),  # Second batch fails
             [np.random.rand(1536) for _ in range(2)],  # Third batch succeeds
@@ -230,18 +242,20 @@ class TestEmojiVectorization:
 
     @pytest.mark.asyncio
     async def test_vectorize_with_custom_model(
-        self, emoji_service, mock_openai_service
+        self, emoji_service, mock_openai_service_local
     ):
         """Test vectorization with custom embedding model"""
         emoji = EmojiData(id=1, code=":custom:", description="Custom emoji for testing")
 
         # Mock custom model embedding
-        custom_embedding = np.random.rand(1536)
-        mock_openai_service.get_embedding_with_metadata.return_value = {
-            "embedding": custom_embedding,
-            "model": "text-embedding-3-large",
-            "usage": {"prompt_tokens": 10},
-        }
+        custom_embedding = np.array([0.1] * 1536, dtype=np.float32)
+        mock_openai_service_local.get_embedding_with_metadata.return_value = (
+            custom_embedding,
+            {
+                "model": "text-embedding-3-large",
+                "usage": {"prompt_tokens": 10},
+            },
+        )
 
         # Call vectorize with custom model (to be implemented)
         result = await emoji_service.vectorize_emoji(
@@ -249,13 +263,11 @@ class TestEmojiVectorization:
         )
 
         # Verify custom model was used
-        mock_openai_service.get_embedding_with_metadata.assert_called_once()
+        mock_openai_service_local.get_embedding_with_metadata.assert_called_once()
         assert result["model"] == "text-embedding-3-large"
 
     @pytest.mark.asyncio
-    async def test_dry_run_vectorization(
-        self, emoji_service, mock_database_service, mock_openai_service
-    ):
+    async def test_dry_run_vectorization(self, emoji_service, mock_database_service):
         """Test dry run mode without database updates"""
         emojis = [
             EmojiData(id=i, code=f":emoji{i}:", description=f"Emoji {i}")
@@ -267,8 +279,8 @@ class TestEmojiVectorization:
         result = await emoji_service.vectorize_all_emojis(dry_run=True)
 
         # Verify embeddings were NOT generated and not saved (dry run)
-        assert not mock_openai_service.get_embedding.called
-        assert not mock_openai_service.get_embeddings_batch.called
+        assert not emoji_service.openai_service.get_embedding.called
+        assert not emoji_service.openai_service.get_embeddings_batch.called
         assert not mock_database_service.batch_update_embeddings.called
         assert result["dry_run"] is True
         assert result["would_process"] == 3

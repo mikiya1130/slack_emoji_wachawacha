@@ -179,7 +179,7 @@ class TestOpenAIService:
         service._client = mock_client_instance
         service.base_delay = 0.01  # Speed up test
 
-        with pytest.raises(Exception, match="Max retries .* exceeded"):
+        with pytest.raises(Exception, match="Rate limit exceeded after.*retries"):
             await service.get_embedding("test text")
 
         assert (
@@ -209,7 +209,11 @@ class TestOpenAIService:
         service = OpenAIService(api_key="test-key")
         service._client = mock_client_instance
 
-        with pytest.raises(APIError):
+        from app.services.openai_service import OpenAIServiceError
+
+        with pytest.raises(
+            OpenAIServiceError, match="OpenAI API error after 3 retries"
+        ):
             await service.get_embedding("test text")
 
     @pytest.mark.asyncio
@@ -233,7 +237,9 @@ class TestOpenAIService:
         service = OpenAIService(api_key="test-key")
         service._client = mock_client_instance
 
-        with pytest.raises(AuthenticationError):
+        from app.services.openai_service import OpenAIServiceError
+
+        with pytest.raises(OpenAIServiceError, match="OpenAI authentication failed"):
             await service.get_embedding("test text")
 
     @pytest.mark.asyncio
@@ -323,10 +329,12 @@ class TestOpenAIService:
         result, metadata = await service.get_embedding_with_metadata("test text")
 
         assert isinstance(result, np.ndarray)
-        assert "tokens_used" in metadata
-        assert metadata["tokens_used"] == 50
         assert "model" in metadata
         assert metadata["model"] == "text-embedding-3-small"
+        assert "dimensions" in metadata
+        assert metadata["dimensions"] == 1536
+        assert "text_length" in metadata
+        assert metadata["text_length"] == 9  # len("test text")
 
     def test_validate_embedding_dimensions(self, openai_service):
         """Test embedding dimension validation"""

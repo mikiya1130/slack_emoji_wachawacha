@@ -3,7 +3,7 @@ Test emoji data loading functionality - using mock data only
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 from app.models.emoji import EmojiData
 
 
@@ -195,13 +195,16 @@ class TestEmojiDataLoading:
             ),
         ]
 
-        # Mock service methods using patch
+        # Mock service methods using patch with AsyncMock
+        count_mock = AsyncMock(side_effect=[0, 3])
+        load_mock = AsyncMock(return_value=saved_emojis)
+        
         with patch.object(
-            mock_emoji_service, "count_emojis", side_effect=[0, 3]
+            mock_emoji_service, "count_emojis", count_mock
         ), patch.object(
             mock_emoji_service,
             "load_and_save_emojis_from_json",
-            return_value=saved_emojis,
+            load_mock,
         ):
 
             # Get initial count

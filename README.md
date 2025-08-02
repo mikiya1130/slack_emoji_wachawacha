@@ -183,29 +183,35 @@ slack_emoji_wachawacha/
 - [x] 基本Python設定とログ機能
 - [x] TDDテストインフラ
 
-### 🚧 Phase 1: Slack連携（予定）
-- [ ] TDDによるSlackHandler実装
-- [ ] Socket Modeメッセージ受信
-- [ ] 絵文字リアクション送信
-- [ ] メッセージフィルタリング
+### ✅ Phase 1: Slack連携（完了）
+- [x] TDDによるSlackHandler実装
+- [x] Socket Modeメッセージ受信
+- [x] 絵文字リアクション送信
+- [x] メッセージフィルタリング
 
-### 🚧 Phase 2: データベース・絵文字管理（予定）
-- [ ] pgvectorを使ったDatabaseService
-- [ ] 類似度検索用EmojiService
-- [ ] 絵文字データモデル
-- [ ] データロードユーティリティ
+### ✅ Phase 2: データベース・絵文字管理（完了）
+- [x] pgvectorを使ったDatabaseService
+- [x] 類似度検索用EmojiService
+- [x] 絵文字データモデル
+- [x] データロードユーティリティ
 
-### 🚧 Phase 3: OpenAI・RAG実装（予定）
-- [ ] 埋め込み用OpenAIService
-- [ ] ベクトル類似度検索
-- [ ] RAG統合
-- [ ] エンドツーエンドワークフロー
+### ✅ Phase 3: OpenAI・RAG実装（完了）
+- [x] 埋め込み用OpenAIService
+- [x] ベクトル類似度検索
+- [x] RAG統合
+- [x] エンドツーエンドワークフロー
 
-### 🚧 Phase 4: テスト・品質保証（予定）
-- [ ] 包括的テストカバレッジ
-- [ ] パフォーマンス最適化
-- [ ] エラーハンドリング改善
-- [ ] ドキュメント完成
+### ✅ Phase 4: テスト・品質保証（完了）
+- [x] 包括的テストカバレッジ（81%達成）
+- [x] パフォーマンス最適化
+- [x] エラーハンドリング改善
+- [x] ドキュメント完成
+
+### ✅ Phase 5: 最終仕上げ（完了）
+- [x] エラーハンドリング強化（包括的エラー処理、Circuit Breaker実装）
+- [x] 設定管理強化（データクラス化、実行時ロード対応）
+- [x] ドキュメント作成（運用手順書、API仕様書）
+- [x] 最終動作確認（Code Quality Check完了）
 
 ## 設定
 
@@ -236,6 +242,172 @@ CREATE TABLE emojis (
 | `DATABASE_URL` | PostgreSQL接続文字列 | いいえ（デフォルトあり） |
 | `ENVIRONMENT` | 環境（development/production） | いいえ（デフォルト: development） |
 | `LOG_LEVEL` | ログレベル | いいえ（デフォルト: INFO） |
+
+## API仕様
+
+### サービスAPI
+
+#### SlackHandler
+
+Slackとの連携を管理するメインハンドラー。
+
+**主要メソッド:**
+
+- `handle_message(message: Dict[str, Any])` - Slackメッセージを処理し、絵文字リアクションを追加
+- `add_reactions(channel: str, timestamp: str, emojis: List[str])` - 指定メッセージに絵文字リアクションを追加
+- `get_metrics()` - パフォーマンスメトリクスを取得
+
+#### OpenAIService
+
+テキストのベクトル化を担当。
+
+**主要メソッド:**
+
+- `get_embedding(text: str) -> np.ndarray` - テキストを1536次元のベクトルに変換
+- `get_embeddings_batch(texts: List[str]) -> List[np.ndarray]` - 複数テキストの一括ベクトル化
+
+#### EmojiService
+
+絵文字データの管理とベクトル検索。
+
+**主要メソッド:**
+
+- `find_similar_emojis(query_vector: List[float], limit: int = 3)` - ベクトル類似度で絵文字を検索
+- `search_by_text(text: str, emotion_tone: str = None)` - テキストから直接絵文字を検索（RAG統合）
+- `vectorize_all_emojis(skip_existing: bool = True)` - 全絵文字データのベクトル化
+
+#### DatabaseService
+
+PostgreSQL + pgvectorとの連携。
+
+**主要メソッド:**
+
+- `find_similar_emojis(embedding: List[float], limit: int = 3)` - pgvectorを使用したコサイン類似度検索
+- `insert_emoji(emoji: EmojiData)` - 絵文字データの挿入（UPSERT）
+- `batch_update_embeddings(embedding_updates: Dict[int, List[float]])` - 埋め込みベクトルの一括更新
+
+### エラーハンドリング
+
+```
+ApplicationError
+├── ConfigurationError    # 設定エラー（CRITICAL）
+├── ServiceError         # サービスエラーの基底クラス
+│   ├── SlackServiceError   # Slack関連エラー
+│   ├── OpenAIServiceError  # OpenAI関連エラー
+│   ├── DatabaseError       # データベース関連エラー
+│   └── EmojiServiceError   # 絵文字サービスエラー
+```
+
+## 運用
+
+### 起動と停止
+
+```bash
+# 全サービスの起動
+docker-compose up -d
+
+# 特定サービスのみ起動
+docker-compose up -d db
+docker-compose up -d app
+
+# グレースフルシャットダウン
+docker-compose stop
+
+# 再起動
+docker-compose restart app
+```
+
+### 運用監視
+
+#### ログ監視
+
+```bash
+# リアルタイムログ監視
+docker-compose logs -f app
+
+# エラーログのみ抽出
+docker-compose logs app | grep ERROR
+```
+
+#### ヘルスチェック
+
+```bash
+# アプリケーションのヘルスチェック
+curl http://localhost:8080/health
+
+# メトリクスエンドポイント（Prometheus形式）
+curl http://localhost:9090/metrics
+```
+
+### トラブルシューティング
+
+#### Slackに接続できない
+
+```bash
+# トークンの確認
+docker-compose exec app python -c "
+from app.config import Config
+config = Config()
+print(f'Bot Token: {config._mask_sensitive(config.slack.bot_token)}')
+print(f'App Token: {config._mask_sensitive(config.slack.app_token)}')
+"
+```
+
+#### リアクションが追加されない
+
+- ログでエラーを確認: `docker-compose logs app | grep ERROR`
+- レート制限の確認: OpenAI/Slack APIのレート制限
+- 絵文字データの確認: データベースに絵文字が登録されているか
+
+### メンテナンス
+
+#### バックアップ
+
+```bash
+# データベースのバックアップ
+docker-compose exec db pg_dump -U postgres emoji_bot > backup_$(date +%Y%m%d).sql
+
+# 設定ファイルのバックアップ
+tar czf config_backup_$(date +%Y%m%d).tar.gz .env config/
+```
+
+#### アップデート手順
+
+```bash
+# 1. 現在の状態をバックアップ
+./scripts/backup.sh
+
+# 2. 新バージョンの取得
+git pull origin main
+
+# 3. 依存関係の更新
+docker-compose build --no-cache
+
+# 4. サービスの再起動
+docker-compose down
+docker-compose up -d
+```
+
+## セキュリティ
+
+### アクセス制御
+
+- 環境変数ファイル（.env）の権限設定: `chmod 600 .env`
+- Dockerソケットへのアクセス制限
+- データベースの接続元IP制限
+
+### 秘密情報の管理
+
+- API KeysやTokensは環境変数で管理
+- 本番環境ではSecret Management Service使用推奨
+- ログに秘密情報が出力されないよう注意
+
+### 監査ログ
+
+```bash
+# セキュリティ関連イベントの監視
+docker-compose logs app | grep -E "(AUTH|SECURITY|ACCESS)"
+```
 
 ## 貢献
 

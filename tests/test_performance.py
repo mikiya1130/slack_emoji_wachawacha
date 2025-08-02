@@ -29,9 +29,15 @@ class TestPerformance:
         async def mock_get_embedding(text):
             # Simulate API latency
             await asyncio.sleep(0.1)  # 100ms latency
-            return np.random.rand(1536).tolist()
+            return np.random.rand(1536).astype(np.float32)
+
+        async def mock_get_embeddings_batch(texts):
+            # Simulate batch API latency
+            await asyncio.sleep(0.2)  # 200ms latency for batch
+            return [np.random.rand(1536).astype(np.float32) for _ in texts]
 
         service.get_embedding = AsyncMock(side_effect=mock_get_embedding)
+        service.get_embeddings_batch = AsyncMock(side_effect=mock_get_embeddings_batch)
         return service
 
     @pytest.fixture

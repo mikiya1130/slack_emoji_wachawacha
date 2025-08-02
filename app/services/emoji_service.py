@@ -7,11 +7,25 @@ TDD GREEN Phase: 最小限の実装でテストを通す
 """
 
 from typing import Any, Dict, List, Optional
+import time
 
 from app.models.emoji import EmojiData
-from app.utils.logging import get_logger
+from app.utils.logging import get_logger, log_execution_time, LogContext, metrics_logger
+from app.utils.error_handler import (
+    with_error_handling,
+    create_circuit_breaker,
+    ErrorSeverity,
+    ErrorHandler,
+    ApplicationError,
+)
 
 logger = get_logger("emoji_service")
+
+
+class EmojiServiceError(ApplicationError):
+    """Emoji service specific error"""
+
+    pass
 
 
 class EmojiService:
@@ -41,7 +55,12 @@ class EmojiService:
         self.cache_ttl = cache_ttl
         self.emoji_cache: Dict[str, EmojiData] = {}
         self.cache_loaded = False
+        self.cache_last_update = 0
         self.openai_service = None  # Will be set later
+
+        # Error handling setup
+        self.error_handler = ErrorHandler(logger)
+        self._register_recovery_strategies()
 
         logger.info(
             f"EmojiService initialized with cache_enabled={cache_enabled}, cache_ttl={cache_ttl}"
@@ -73,6 +92,8 @@ class EmojiService:
             # Non-critical error, continue without initial data
             return 0
 
+    @with_error_handling(logger=logger, reraise=False, default_return=[])
+    @log_execution_time(logger)
     async def find_similar_emojis(
         self,
         query_vector: List[float],
@@ -90,19 +111,33 @@ class EmojiService:
         Returns:
             List[Dict[str, Any]]: 類似絵文字のリスト
         """
-        try:
-            # DatabaseServiceを使用してベクトル検索
-            emoji_results = await self.database_service.find_similar_emojis(
-                query_vector, limit=limit, filters=filters
-            )
+        with LogContext(logger, limit=limit, has_filters=filters is not None):
+            try:
+                # Track search request
+                metrics_logger.log_counter("emoji_similarity_searches")
 
-            logger.debug(f"Found {len(emoji_results)} similar emojis")
-            return emoji_results
+                # DatabaseServiceを使用してベクトル検索
+                emoji_results = await self._find_similar_emojis_with_circuit_breaker(
+                    query_vector, limit=limit, filters=filters
+                )
 
-        except Exception as e:
-            logger.error(f"Error finding similar emojis: {e}")
-            # エラー時も空のリストを返してテストを通す
-            return []
+                logger.debug(f"Found {len(emoji_results)} similar emojis")
+
+                # Track success
+                metrics_logger.log_gauge(
+                    "emoji_search_results_count", len(emoji_results)
+                )
+
+                return emoji_results
+
+            except Exception as e:
+                metrics_logger.log_counter("emoji_similarity_searches_failed")
+                raise EmojiServiceError(
+                    "Error finding similar emojis",
+                    severity=ErrorSeverity.MEDIUM,
+                    details={"limit": limit, "has_filters": filters is not None},
+                    original_error=e,
+                )
 
     async def get_emoji_by_code(self, code: str) -> Optional[EmojiData]:
         """
@@ -501,15 +536,17 @@ class EmojiService:
         try:
             if model:
                 # Use custom model with metadata
-                result = await self.openai_service.get_embedding_with_metadata(
-                    emoji.description, model=model
+                embedding, metadata = (
+                    await self.openai_service.get_embedding_with_metadata(
+                        emoji.description, model=model
+                    )
                 )
                 return {
                     "id": emoji.id,
                     "code": emoji.code,
-                    "embedding": result["embedding"].tolist(),
-                    "model": result["model"],
-                    "usage": result.get("usage"),
+                    "embedding": embedding.tolist(),
+                    "model": metadata.get("model", model),
+                    "usage": metadata.get("usage"),
                 }
             else:
                 # Use default model
@@ -683,3 +720,100 @@ class EmojiService:
         result = await self._db_service.batch_update_embeddings(embedding_updates)
         # Ensure we return True if the database operation succeeded
         return result if isinstance(result, bool) else True
+
+    def _is_cache_valid(self) -> bool:
+        """キャッシュが有効かどうかをチェック"""
+        if not self.cache_enabled:
+            return False
+
+        # Check TTL
+        if self.cache_ttl > 0:
+            cache_age = time.time() - self.cache_last_update
+            if cache_age > self.cache_ttl:
+                logger.debug(
+                    f"Cache expired (age: {cache_age}s, ttl: {self.cache_ttl}s)"
+                )
+                return False
+
+        return True
+
+    def _register_recovery_strategies(self) -> None:
+        """エラーリカバリ戦略を登録"""
+
+        def recover_from_cache_error(error: Exception) -> Any:
+            """キャッシュエラーからのリカバリ"""
+            if isinstance(error, EmojiServiceError) and "cache" in str(error).lower():
+                logger.warning("Cache error detected, clearing cache")
+                self.emoji_cache.clear()
+                self.cache_last_update = 0
+            return None
+
+        self.error_handler.register_recovery_strategy(
+            EmojiServiceError, recover_from_cache_error
+        )
+
+    @create_circuit_breaker(failure_threshold=5, timeout_seconds=60, logger=logger)
+    async def _find_similar_emojis_with_circuit_breaker(
+        self,
+        query_vector: List[float],
+        limit: int = 3,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[EmojiData]:
+        """サーキットブレーカー付きで類似絵文字を検索"""
+        return await self.database_service.find_similar_emojis(
+            query_vector, limit=limit, filters=filters
+        )
+
+    async def health_check(self) -> Dict[str, Any]:
+        """サービスのヘルスチェック"""
+        health_status = {
+            "service": "emoji_service",
+            "healthy": True,
+            "cache_enabled": self.cache_enabled,
+            "cache_size": len(self.emoji_cache),
+            "cache_valid": self._is_cache_valid(),
+            "database_connected": False,
+            "openai_configured": self.openai_service is not None,
+            "error_stats": self.error_handler.get_error_statistics(),
+        }
+
+        try:
+            # Check database connection
+            count = await self.database_service.count_emojis()
+            health_status["database_connected"] = True
+            health_status["emoji_count"] = count
+            metrics_logger.log_counter("emoji_service_health_checks_passed")
+        except Exception as e:
+            health_status["healthy"] = False
+            health_status["database_error"] = str(e)
+            metrics_logger.log_counter("emoji_service_health_checks_failed")
+            self.error_handler.log_error(e, {"action": "health_check"})
+
+        return health_status
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """サービスメトリクスを取得"""
+        error_stats = self.error_handler.get_error_statistics()
+        global_metrics = metrics_logger.get_metrics_summary()
+
+        return {
+            "cache_stats": {
+                "enabled": self.cache_enabled,
+                "size": len(self.emoji_cache),
+                "ttl": self.cache_ttl,
+                "valid": self._is_cache_valid(),
+                "hit_rate": self._calculate_cache_hit_rate(),
+            },
+            "error_statistics": error_stats,
+            "emoji_metrics": {
+                k: v for k, v in global_metrics.items() if k.startswith("emoji_")
+            },
+        }
+
+    def _calculate_cache_hit_rate(self) -> float:
+        """キャッシュヒット率を計算"""
+        global_metrics = metrics_logger.get_metrics_summary()
+        hits = global_metrics.get("emoji_cache_hits", {}).get("sum", 0)
+        misses = global_metrics.get("emoji_cache_misses", {}).get("sum", 0)
+        total = hits + misses
+        return (hits / total * 100) if total > 0 else 0.0

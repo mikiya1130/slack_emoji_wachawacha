@@ -4,6 +4,7 @@ This serves as a basic test to verify TDD infrastructure is working.
 """
 
 import pytest
+import os
 from unittest.mock import patch
 from app.config import Config
 import importlib
@@ -46,20 +47,29 @@ class TestConfig:
 
     def test_config_validation_failure(self):
         """Test config validation with missing values."""
-        # Mock missing config values
-        with patch.object(Config, "SLACK_BOT_TOKEN", ""), patch.object(
-            Config, "SLACK_APP_TOKEN", ""
-        ), patch.object(Config, "OPENAI_API_KEY", ""):
+        # Mock environment variables with empty values
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "", "SLACK_APP_TOKEN": "", "OPENAI_API_KEY": ""},
+            clear=True,
+        ):
+            # Clear cached instance
+            Config._instance = None
+            Config._loaded = False
 
-            with pytest.raises(ValueError, match="Missing required configuration"):
+            with pytest.raises(ValueError, match="Configuration validation failed"):
                 Config.validate()
 
     def test_config_environment_checks(self):
         """Test environment checking methods."""
-        with patch.object(Config, "ENVIRONMENT", "development"):
+        with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
+            Config._instance = None
+            Config._loaded = False
             assert Config.is_development() is True
             assert Config.is_production() is False
 
-        with patch.object(Config, "ENVIRONMENT", "production"):
+        with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
+            Config._instance = None
+            Config._loaded = False
             assert Config.is_development() is False
             assert Config.is_production() is True

@@ -21,7 +21,13 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.models.emoji import EmojiData
 from app.config import Config
-from app.utils.logging import get_logger
+from app.utils.logging import get_logger, metrics_logger
+from app.utils.error_handler import (
+    create_circuit_breaker,
+    ErrorHandler,
+    DatabaseError,
+    ConfigurationError,
+)
 
 logger = get_logger("database_service")
 
@@ -53,8 +59,22 @@ class DatabaseService:
             connection_url: PostgreSQL接続URL（省略時はConfig.DATABASE_URLを使用）
         """
         self.connection_string = connection_url or Config.DATABASE_URL
+        if not self.connection_string:
+            raise ConfigurationError(
+                "Database connection URL is required",
+                details={"missing_config": "DATABASE_URL"},
+            )
+
         self.connection_pool: Optional[AsyncConnectionPool] = None
         self.pool_size = 10  # デフォルトプールサイズ
+
+        # Error handling setup
+        self.error_handler = ErrorHandler(logger)
+        self._register_recovery_strategies()
+
+        # Connection retry settings
+        self.max_retries = 3
+        self.retry_delay = 1.0
         self.min_pool_size = 5  # 最小プールサイズ
         self.max_pool_size = 20  # 最大プールサイズ
 
@@ -204,23 +224,6 @@ class DatabaseService:
         async with self.get_connection() as conn:
             async with conn.transaction():
                 yield conn
-
-    async def health_check(self) -> bool:
-        """
-        データベース接続のヘルスチェック
-
-        Returns:
-            bool: 接続が正常な場合True
-        """
-        try:
-            async with self.get_connection() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute("SELECT 1")
-                    result = await cursor.fetchone()
-                    return result[0] == 1
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            return False
 
     async def get_pool_stats(self) -> Dict[str, Any]:
         """
@@ -740,3 +743,91 @@ class DatabaseService:
             created_at=row[8],
             updated_at=row[9],
         )
+
+    def _mask_connection_url(self) -> str:
+        """接続URLをマスクしてログ用に返す"""
+        if not self.connection_string:
+            return "<not_set>"
+
+        # Basic masking of sensitive info
+        parts = self.connection_string.split("@")
+        if len(parts) > 1:
+            return f"{parts[0][:10]}...@{parts[-1][-20:]}"
+        return self.connection_string[:20] + "..."
+
+    def _register_recovery_strategies(self) -> None:
+        """エラーリカバリ戦略を登録"""
+
+        def recover_from_connection_error(error: Exception) -> Any:
+            """接続エラーからのリカバリ"""
+            if isinstance(error, DatabaseError) and "connection" in str(error).lower():
+                logger.warning("Attempting to reset connection pool")
+                # In a real scenario, might attempt to recreate the pool
+                # For now, just log the attempt
+            return None
+
+        self.error_handler.register_recovery_strategy(
+            DatabaseError, recover_from_connection_error
+        )
+
+    @create_circuit_breaker(failure_threshold=5, timeout_seconds=60, logger=logger)
+    async def _execute_with_circuit_breaker(
+        self, query: str, params: Any = None
+    ) -> Any:
+        """サーキットブレーカー付きでクエリを実行"""
+        async with self.get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, params)
+                return await cur.fetchall()
+
+    async def health_check(self) -> Dict[str, Any]:
+        """データベースのヘルスチェック"""
+        health_status: Dict[str, Any] = {
+            "connected": False,
+            "pool_size": self.pool_size,
+            "error": None,
+            "metrics": {},
+        }
+
+        try:
+            # Simple query to check connection
+            async with self.get_connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("SELECT 1")
+                    await cur.fetchone()
+
+            health_status["connected"] = True
+            metrics_logger.log_counter("db_health_checks_passed")
+
+            # Get pool stats if available
+            if self.connection_pool:
+                health_status["pool_stats"] = {
+                    "min_size": getattr(self.connection_pool, "_minsize", None),
+                    "max_size": getattr(self.connection_pool, "_maxsize", None),
+                }
+
+        except Exception as e:
+            health_status["error"] = str(e)
+            metrics_logger.log_counter("db_health_checks_failed")
+            self.error_handler.log_error(e, {"action": "health_check"})
+
+        # Add error statistics
+        health_status["error_stats"] = self.error_handler.get_error_statistics()
+
+        return health_status
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """サービスメトリクスを取得"""
+        error_stats = self.error_handler.get_error_statistics()
+        global_metrics = metrics_logger.get_metrics_summary()
+
+        return {
+            "connection_pool": {
+                "size": self.pool_size,
+                "configured": self.connection_pool is not None,
+            },
+            "error_statistics": error_stats,
+            "db_metrics": {
+                k: v for k, v in global_metrics.items() if k.startswith("db_")
+            },
+        }
