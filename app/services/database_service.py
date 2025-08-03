@@ -165,37 +165,34 @@ class DatabaseService:
                     )
                     exists = await cursor.fetchone()
 
-                    if exists and exists[0]:
-                        logger.info("Database schema already exists")
-                        return
-
-                    # Create emojis table
-                    logger.info("Creating emojis table...")
-                    await cursor.execute(
+                    if not exists or not exists[0]:
+                        # Create emojis table
+                        logger.info("Creating emojis table...")
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS emojis (
+                                id SERIAL PRIMARY KEY,
+                                code VARCHAR(100) NOT NULL UNIQUE,
+                                description TEXT NOT NULL,
+                                category VARCHAR(50),
+                                emotion_tone VARCHAR(20),
+                                usage_scene VARCHAR(100),
+                                priority INTEGER DEFAULT 1,
+                                embedding VECTOR(1536),
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
                         """
-                        CREATE TABLE IF NOT EXISTS emojis (
-                            id SERIAL PRIMARY KEY,
-                            code VARCHAR(100) NOT NULL UNIQUE,
-                            description TEXT NOT NULL,
-                            category VARCHAR(50),
-                            emotion_tone VARCHAR(20),
-                            usage_scene VARCHAR(100),
-                            priority INTEGER DEFAULT 1,
-                            embedding VECTOR(1536),
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """
-                    )
+                        )
 
-                    # Create index for vector similarity search
-                    await cursor.execute(
+                        # Create index for vector similarity search
+                        await cursor.execute(
+                            """
+                            CREATE INDEX IF NOT EXISTS idx_emojis_embedding
+                            ON emojis USING ivfflat (embedding vector_cosine_ops)
+                            WITH (lists = 100);
                         """
-                        CREATE INDEX IF NOT EXISTS idx_emojis_embedding
-                        ON emojis USING ivfflat (embedding vector_cosine_ops)
-                        WITH (lists = 100);
-                    """
-                    )
+                        )
 
                     # Create admin_users table
                     logger.info("Creating admin_users table...")

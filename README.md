@@ -262,6 +262,14 @@ CREATE TABLE emojis (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE admin_users (
+    user_id VARCHAR(50) PRIMARY KEY,        -- Slack User ID
+    username VARCHAR(100) NOT NULL,         -- Slack ユーザー名
+    permission VARCHAR(20) NOT NULL,        -- viewer/editor/admin
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### 環境変数
@@ -274,6 +282,97 @@ CREATE TABLE emojis (
 | `DATABASE_URL` | PostgreSQL接続文字列 | いいえ（デフォルトあり） |
 | `ENVIRONMENT` | 環境（development/production） | いいえ（デフォルト: development） |
 | `LOG_LEVEL` | ログレベル | いいえ（デフォルト: INFO） |
+
+## 権限管理
+
+このアプリケーションには3つの権限レベルがあります：
+
+| 権限レベル | 説明 | 利用可能なコマンド |
+|-----------|------|-------------------|
+| `viewer` | 閲覧のみ（デフォルト） | `/emoji list`, `/emoji search`, `/emoji stats` |
+| `editor` | 編集可能 | viewerの権限 + `/emoji add`, `/emoji delete`, `/emoji update` |
+| `admin` | 管理者権限 | editorの権限 + `/emoji vectorize` |
+
+### 権限の設定方法
+
+初期状態では`admin_users`テーブルは空で、全ユーザーはデフォルトで`viewer`権限を持ちます。
+特定のユーザーに権限を付与するには、データベースに直接レコードを追加します。
+
+#### 1. PostgreSQLコンテナに接続
+
+```bash
+docker compose exec db psql -U postgres -d emoji_bot
+```
+
+#### 2. 権限の付与
+
+```sql
+-- ユーザーIDの確認（SlackのプロフィールからUser IDを取得）
+-- 例: U1234567890
+
+-- 管理者権限を付与
+INSERT INTO admin_users (user_id, username, permission)
+VALUES ('U1234567890', 'admin_user_name', 'admin')
+ON CONFLICT (user_id) DO UPDATE
+SET permission = EXCLUDED.permission,
+    username = EXCLUDED.username,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- エディター権限を付与
+INSERT INTO admin_users (user_id, username, permission)
+VALUES ('U0987654321', 'editor_user_name', 'editor')
+ON CONFLICT (user_id) DO UPDATE
+SET permission = EXCLUDED.permission,
+    username = EXCLUDED.username,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- ビューワー権限を付与（通常は不要、デフォルトで全員がviewer）
+INSERT INTO admin_users (user_id, username, permission)
+VALUES ('U1111111111', 'viewer_user_name', 'viewer')
+ON CONFLICT (user_id) DO UPDATE
+SET permission = EXCLUDED.permission,
+    username = EXCLUDED.username,
+    updated_at = CURRENT_TIMESTAMP;
+```
+
+#### 3. 権限の確認
+
+```sql
+-- 全ての権限ユーザーを表示
+SELECT * FROM admin_users ORDER BY permission, created_at;
+
+-- 特定ユーザーの権限を確認
+SELECT * FROM admin_users WHERE user_id = 'U1234567890';
+```
+
+#### 4. 権限の更新
+
+```sql
+-- 権限レベルの変更
+UPDATE admin_users
+SET permission = 'editor',
+    updated_at = CURRENT_TIMESTAMP
+WHERE user_id = 'U1234567890';
+```
+
+#### 5. 権限の削除
+
+```sql
+-- ユーザーをadmin_usersテーブルから削除（viewer権限に戻る）
+DELETE FROM admin_users WHERE user_id = 'U1234567890';
+```
+
+#### 6. SQLコンソールの終了
+
+```sql
+\q
+```
+
+### Slack User IDの取得方法
+
+1. Slackワークスペースで対象ユーザーのプロフィールを開く
+2. 「More」メニューから「Copy member ID」を選択
+3. コピーされたIDが`U`で始まる形式（例：`U1234567890`）であることを確認
 
 ## API仕様
 
