@@ -101,7 +101,7 @@ class TestEmojiVectorization:
         ]
 
         # Mock get_all_emojis to return test emojis
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call batch vectorize method (to be implemented)
         await emoji_service.vectorize_emojis_batch(batch_size=2)
@@ -139,7 +139,7 @@ class TestEmojiVectorization:
             ),
         ]
 
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call vectorize method with skip_existing=True (to be implemented)
         result = await emoji_service.vectorize_all_emojis(skip_existing=True)
@@ -164,7 +164,7 @@ class TestEmojiVectorization:
             EmojiData(id=i, code=f":emoji{i}:", description=f"Emoji {i}")
             for i in range(5)
         ]
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call vectorize with progress callback (to be implemented)
         await emoji_service.vectorize_all_emojis(progress_callback=progress_callback)
@@ -206,7 +206,7 @@ class TestEmojiVectorization:
             EmojiData(id=i, code=f":emoji{i}:", description=f"Emoji {i}")
             for i in range(6)
         ]
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call batch vectorize with continue_on_error=True (to be implemented)
         result = await emoji_service.vectorize_emojis_batch(
@@ -222,6 +222,9 @@ class TestEmojiVectorization:
         self, emoji_service, mock_database_service
     ):
         """Test updating emoji embeddings in database"""
+        # Configure the mock method as AsyncMock
+        mock_database_service.batch_update_embeddings = AsyncMock(return_value=True)
+
         # Create embedding updates
         embedding_updates = {
             1: [0.1] * 1536,
@@ -273,7 +276,7 @@ class TestEmojiVectorization:
             EmojiData(id=i, code=f":emoji{i}:", description=f"Emoji {i}")
             for i in range(3)
         ]
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call vectorize in dry run mode (to be implemented)
         result = await emoji_service.vectorize_all_emojis(dry_run=True)
@@ -311,7 +314,7 @@ class TestEmojiVectorization:
                 emotion_tone="neutral",
             ),
         ]
-        mock_database_service.get_all_emojis.return_value = emojis
+        mock_database_service.get_all_emojis = AsyncMock(return_value=emojis)
 
         # Call vectorize with filters (to be implemented)
         result = await emoji_service.vectorize_all_emojis(

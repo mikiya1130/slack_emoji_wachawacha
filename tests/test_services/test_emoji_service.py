@@ -291,16 +291,18 @@ class TestEmojiServiceBulkOperations:
         self, mock_emoji_service, sample_emoji_json_data
     ):
         """JSONファイルからの絵文字読み込みテスト - モック化"""
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock
 
         # Mock the return value without file access
         expected_emojis = [EmojiData.from_dict(data) for data in sample_emoji_json_data]
 
-        with patch.object(
-            mock_emoji_service, "load_emojis_from_json", return_value=expected_emojis
-        ):
-            # 読み込み実行
-            result = await mock_emoji_service.load_emojis_from_json("mock_file.json")
+        # Configure the mock method as AsyncMock
+        mock_emoji_service.load_emojis_from_json = AsyncMock(
+            return_value=expected_emojis
+        )
+
+        # 読み込み実行
+        result = await mock_emoji_service.load_emojis_from_json("mock_file.json")
 
         assert len(result) == 3
         assert all(isinstance(emoji, EmojiData) for emoji in result)
@@ -423,15 +425,17 @@ class TestEmojiServiceCaching:
     @pytest.mark.asyncio
     async def test_cache_invalidation_on_update(self, mock_emoji_service_with_cache):
         """更新時のキャッシュ無効化テスト"""
+        from unittest.mock import AsyncMock
+
         sample_emoji = EmojiData(code=":smile:", description="Smiling face", id=1)
         updated_emoji = EmojiData(code=":smile:", description="Very smiling face", id=1)
 
-        # DatabaseServiceのmockを設定
-        mock_emoji_service_with_cache.database_service.get_emoji_by_id.return_value = (
-            sample_emoji
+        # Configure the mock methods as AsyncMock
+        mock_emoji_service_with_cache.database_service.get_emoji_by_id = AsyncMock(
+            return_value=sample_emoji
         )
-        mock_emoji_service_with_cache.database_service.update_emoji.return_value = (
-            updated_emoji
+        mock_emoji_service_with_cache.database_service.update_emoji = AsyncMock(
+            return_value=updated_emoji
         )
 
         # 1回目: データを取得（キャッシュされる）
@@ -442,8 +446,8 @@ class TestEmojiServiceCaching:
         await mock_emoji_service_with_cache.update_emoji(updated_emoji)
 
         # DatabaseServiceのget呼び出しを更新後の値に変更
-        mock_emoji_service_with_cache.database_service.get_emoji_by_id.return_value = (
-            updated_emoji
+        mock_emoji_service_with_cache.database_service.get_emoji_by_id = AsyncMock(
+            return_value=updated_emoji
         )
 
         # 2回目: 更新後のデータを取得（キャッシュが無効化されているため再度DBから取得）
@@ -469,6 +473,11 @@ class TestEmojiServiceBusinessLogic:
     @pytest.mark.asyncio
     async def test_get_emojis_by_category(self, mock_emoji_service):
         """カテゴリ別絵文字取得テスト"""
+        # Configure the mock method as AsyncMock
+        from unittest.mock import AsyncMock
+
+        mock_emoji_service.get_emojis_by_category = AsyncMock(return_value=[])
+
         # フィルタ機能を使用してカテゴリ別取得
         result = await mock_emoji_service.get_emojis_by_category("emotions")
 

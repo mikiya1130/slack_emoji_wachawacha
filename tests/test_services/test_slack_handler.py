@@ -7,7 +7,9 @@ SlackHandlerの期待される動作を定義します。
 
 import pytest
 import time
+import asyncio
 from unittest.mock import Mock, AsyncMock, patch
+from app.models.emoji import EmojiData
 
 
 class TestSlackHandler:
@@ -26,9 +28,9 @@ class TestSlackHandler:
         service = AsyncMock()
         service.find_similar_emojis = AsyncMock(
             return_value=[
-                {"code": ":smile:", "description": "Happy expression"},
-                {"code": ":thumbsup:", "description": "Approval"},
-                {"code": ":heart:", "description": "Love"},
+                EmojiData(":smile:", "Happy expression"),
+                EmojiData(":thumbsup:", "Approval"),
+                EmojiData(":heart:", "Love"),
             ]
         )
         return service
@@ -44,8 +46,8 @@ class TestSlackHandler:
     @pytest.fixture
     def slack_handler(self, mock_openai_service, mock_emoji_service):
         """SlackHandlerインスタンス（実装後に有効化）"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -53,7 +55,7 @@ class TestSlackHandler:
             # Mock App instance
             mock_app = Mock()
             mock_client = Mock()
-            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_client.reactions_add = AsyncMock(return_value={"ok": True})
             mock_app.client = mock_client
             mock_app.event = Mock(return_value=lambda func: func)
             mock_app_class.return_value = mock_app
@@ -84,8 +86,8 @@ class TestSlackHandler:
         self, mock_openai_service, mock_emoji_service
     ):
         """SlackHandlerの初期化テスト"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -283,8 +285,8 @@ class TestSlackHandlerReactionFeatures:
         self, mock_openai_service, mock_emoji_service
     ):
         """リトライ機能を持つSlackHandler（実装されていないため失敗するはず）"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -292,7 +294,7 @@ class TestSlackHandlerReactionFeatures:
             # Mock App instance
             mock_app = Mock()
             mock_client = Mock()
-            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_client.reactions_add = AsyncMock(return_value={"ok": True})
             mock_app.client = mock_client
             mock_app.event = Mock(return_value=lambda func: func)
             mock_app_class.return_value = mock_app
@@ -424,11 +426,11 @@ class TestSlackHandlerReactionFeatures:
         start_time = time.time()
 
         # 各リアクションに0.1秒の遅延を追加
-        def mock_delayed_reaction(*args, **kwargs):
-            time.sleep(0.1)  # 同期的なsleepを使用
+        async def mock_delayed_reaction(*args, **kwargs):
+            await asyncio.sleep(0.1)  # 非同期的なsleepを使用
             return {"ok": True}
 
-        handler.app.client.reactions_add = Mock(side_effect=mock_delayed_reaction)
+        handler.app.client.reactions_add = AsyncMock(side_effect=mock_delayed_reaction)
 
         # 5個の絵文字を処理
         emojis = [":smile:", ":thumbsup:", ":heart:", ":fire:", ":star:"]
@@ -477,8 +479,8 @@ class TestSlackHandlerErrorHandling:
     @pytest.fixture
     def slack_handler_with_error_services(self):
         """エラーを発生させるサービスを持つSlackHandler"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -486,7 +488,7 @@ class TestSlackHandlerErrorHandling:
             # Mock App instance
             mock_app = Mock()
             mock_client = Mock()
-            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_client.reactions_add = AsyncMock(return_value={"ok": True})
             mock_app.client = mock_client
             mock_app.event = Mock(return_value=lambda func: func)
             mock_app_class.return_value = mock_app

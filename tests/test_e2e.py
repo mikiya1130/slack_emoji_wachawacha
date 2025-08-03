@@ -44,7 +44,7 @@ class TestEndToEnd:
             "X-Rate-Limit-Remaining": "100",
             "X-Rate-Limit-Reset": "1234567890",
         }
-        mock_client.reactions_add = Mock(return_value=reaction_response)
+        mock_client.reactions_add = AsyncMock(return_value=reaction_response)
 
         return mock_app
 
@@ -226,16 +226,12 @@ class TestEndToEnd:
         await mock_db_service.connect()  # Initialize connection pool
         emoji_service = EmojiService(mock_db_service)
 
-        # Create a proper mock for openai_service with get_embedding method
-        from unittest.mock import AsyncMock
-
-        mock_openai_service = AsyncMock()
-        mock_openai_service.get_embedding = AsyncMock(return_value=np.random.rand(1536))
-        emoji_service.openai_service = mock_openai_service
+        # Use the existing mock_openai
+        emoji_service.openai_service = mock_openai
 
         # Initialize Slack handler with mocks
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -272,14 +268,14 @@ class TestEndToEnd:
             "X-Rate-Limit-Remaining": "100",
             "X-Rate-Limit-Reset": "1234567890",
         }
-        mock_slack_app.client.reactions_add = Mock(return_value=reaction_response)
+        mock_slack_app.client.reactions_add = AsyncMock(return_value=reaction_response)
 
         # Process message
         await slack_handler.process_message_for_reactions(test_message)
 
         # Verify complete flow
         # 1. OpenAI was called for embedding
-        mock_openai_service.get_embedding.assert_called_once()
+        mock_openai.get_embedding.assert_called_once()
 
         # 2. Database was queried for similar emojis
         mock_db_service.find_similar_emojis.assert_called_once()
@@ -309,8 +305,8 @@ class TestEndToEnd:
         emoji_service = EmojiService(mock_db_service)
         emoji_service.openai_service = mock_openai
 
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -369,15 +365,11 @@ class TestEndToEnd:
         await mock_db_service.connect()  # Initialize connection pool
         emoji_service = EmojiService(mock_db_service)
 
-        # Create a proper mock for openai_service with get_embedding method
-        from unittest.mock import AsyncMock
+        # Use the existing mock_openai
+        emoji_service.openai_service = mock_openai
 
-        mock_openai_service = AsyncMock()
-        mock_openai_service.get_embedding = AsyncMock(return_value=np.random.rand(1536))
-        emoji_service.openai_service = mock_openai_service
-
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -416,7 +408,9 @@ class TestEndToEnd:
                 "X-Rate-Limit-Remaining": "100",
                 "X-Rate-Limit-Reset": "1234567890",
             }
-            mock_slack_app.client.reactions_add = Mock(return_value=reaction_response)
+            mock_slack_app.client.reactions_add = AsyncMock(
+                return_value=reaction_response
+            )
 
             # Process messages concurrently
             tasks = [
@@ -425,7 +419,7 @@ class TestEndToEnd:
             await asyncio.gather(*tasks)
 
             # Verify all messages were processed
-            assert mock_openai_service.get_embedding.call_count == 10
+            assert mock_openai.get_embedding.call_count == 10
             assert (
                 mock_slack_app.client.reactions_add.call_count == 30
             )  # 3 emojis * 10 messages
@@ -461,32 +455,23 @@ class TestEndToEnd:
         self, mock_env_vars, mock_slack_app, mock_openai, mock_db_service
     ):
         """Test graceful shutdown handling"""
-        with patch("app.main.SlackHandler") as mock_handler_class, patch(
-            "app.main.DatabaseService"
-        ) as mock_db_service_class:
-            mock_handler = Mock()
-            mock_handler.stop = AsyncMock()  # stop() is async
+        # Create async mocks with spec to avoid attribute assignment issues
+        mock_handler = AsyncMock()
+        mock_db = AsyncMock()
 
-            mock_db_service = Mock()
-            mock_db_service.close = AsyncMock()  # close() is async
-
-            mock_handler_class.return_value = mock_handler
-            mock_db_service_class.return_value = mock_db_service
-
-            # Import and set globals
-            import app.main
-
-            app.main.slack_handler = mock_handler
-            app.main.db_service = mock_db_service
-
-            # Simulate shutdown
+        # Patch the module globals directly
+        with patch("app.main.slack_handler", mock_handler), patch(
+            "app.main.db_service", mock_db
+        ):
+            # Import shutdown function
             from app.main import shutdown
 
+            # Call shutdown
             await shutdown()
 
             # Verify cleanup
             mock_handler.stop.assert_called_once()
-            mock_db_service.close.assert_called_once()
+            mock_db.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_health_check_endpoint_e2e(
@@ -501,8 +486,13 @@ class TestEndToEnd:
         emoji_service = EmojiService(mock_db_service)
         emoji_service.openai_service = mock_openai
 
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        # Configure async methods on mocks to prevent warnings
+        mock_openai.get_embedding = AsyncMock(return_value=np.random.rand(1536))
+        mock_db_service.health_check = AsyncMock(return_value={"connected": True})
+        mock_slack_app.client.auth_test = AsyncMock(return_value={"ok": True})
+
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -597,8 +587,8 @@ class TestEndToEnd:
         emoji_service = EmojiService(mock_db_service)
         emoji_service.openai_service = mock_openai
 
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -626,7 +616,9 @@ class TestEndToEnd:
                 "X-Rate-Limit-Remaining": "5",
                 "X-Rate-Limit-Reset": "1234567890",
             }
-            mock_slack_app.client.reactions_add = Mock(return_value=reaction_response)
+            mock_slack_app.client.reactions_add = AsyncMock(
+                return_value=reaction_response
+            )
 
             # Send messages that would exceed rate limit
             messages = []

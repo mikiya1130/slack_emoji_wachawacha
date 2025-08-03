@@ -14,8 +14,8 @@ Features:
 import asyncio
 import time
 from typing import List, Dict, Any, Optional
-from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_bolt.app.async_app import AsyncApp
+from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from slack_sdk.errors import SlackApiError
 from app.utils.logging import get_logger
 from app.config import Config
@@ -55,10 +55,12 @@ class SlackHandler:
         config = Config()
 
         # Slack Bolt App（実際の実装）
-        self.app = App(token=config.slack.bot_token)
+        self.app = AsyncApp(token=config.slack.bot_token)
 
         # Socket Mode Handler（実際の実装）
-        self.socket_mode_handler = SocketModeHandler(self.app, config.slack.app_token)
+        self.socket_mode_handler = AsyncSocketModeHandler(
+            self.app, config.slack.app_token
+        )
 
         # メッセージハンドラーを登録
         self._register_handlers()
@@ -104,17 +106,7 @@ class SlackHandler:
         logger.info("Starting Slack handler...")
         try:
             # Socket Mode接続を非同期で開始
-            # SocketModeHandlerは同期的なので、別スレッドで実行
-            import threading
-
-            self._socket_mode_thread = threading.Thread(
-                target=self.socket_mode_handler.start, daemon=True
-            )
-            self._socket_mode_thread.start()
-
-            # 接続が確立されるまで少し待つ
-            await asyncio.sleep(2)
-
+            await self.socket_mode_handler.start_async()
             logger.info("Slack handler started successfully")
         except Exception as e:
             logger.error(f"Failed to start Slack handler: {e}")
@@ -126,14 +118,7 @@ class SlackHandler:
         try:
             # Socket Mode接続を閉じる
             if hasattr(self, "socket_mode_handler"):
-                self.socket_mode_handler.close()
-
-            # スレッドの終了を待つ
-            if (
-                hasattr(self, "_socket_mode_thread")
-                and self._socket_mode_thread.is_alive()
-            ):
-                self._socket_mode_thread.join(timeout=5)
+                await self.socket_mode_handler.close_async()
 
             logger.info("Slack handler stopped successfully")
         except Exception as e:
@@ -168,7 +153,7 @@ class SlackHandler:
             )
 
             # 絵文字コードを抽出
-            emoji_codes = [emoji["code"] for emoji in similar_emojis]
+            emoji_codes = [emoji.code for emoji in similar_emojis]
 
             # Slackにリアクションを追加
             await self.add_reactions(message["channel"], message["ts"], emoji_codes)
@@ -330,13 +315,9 @@ class SlackHandler:
 
         for attempt in range(self.max_retries + 1):  # 初回 + リトライ
             try:
-                # Slack APIを呼び出し（同期APIを非同期でラップ）
-                loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: self.app.client.reactions_add(
-                        channel=channel, timestamp=timestamp, name=emoji_name
-                    ),
+                # Slack APIを呼び出し（非同期クライアント使用）
+                response = await self.app.client.reactions_add(
+                    channel=channel, timestamp=timestamp, name=emoji_name
                 )
 
                 # レート制限情報を記録

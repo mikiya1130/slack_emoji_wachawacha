@@ -136,12 +136,11 @@ class TestEmojiDataLoading:
             ),
         ]
 
-        # Use patch to mock the method
-        with patch.object(
-            mock_emoji_service, "load_emojis_from_json", return_value=test_emojis
-        ):
-            # Test the mocked service
-            loaded_emojis = await mock_emoji_service.load_emojis_from_json("test.json")
+        # Configure the mock method as AsyncMock
+        mock_emoji_service.load_emojis_from_json = AsyncMock(return_value=test_emojis)
+
+        # Test the mocked service
+        loaded_emojis = await mock_emoji_service.load_emojis_from_json("test.json")
 
         assert isinstance(loaded_emojis, list), "Should return a list of emojis"
         assert len(loaded_emojis) == 3, "Should load exactly 3 test emojis"
@@ -329,31 +328,29 @@ class TestEmojiDataLoading:
             ),
         ]
 
-        # Mock service methods
-        with patch.object(
-            mock_emoji_service,
-            "load_and_save_emojis_from_json",
-            return_value=saved_emojis,
-        ), patch.object(
-            mock_emoji_service,
-            "get_emoji_by_code",
-            side_effect=lambda code: next(
-                (emoji for emoji in saved_emojis if emoji.code == code), None
-            ),
-        ):
+        # Mock service methods with AsyncMock
+        async def get_emoji_by_code_side_effect(code):
+            return next((emoji for emoji in saved_emojis if emoji.code == code), None)
 
-            # First save the test emojis
-            result_emojis = await mock_emoji_service.load_and_save_emojis_from_json(
-                "test.json"
+        mock_emoji_service.load_and_save_emojis_from_json = AsyncMock(
+            return_value=saved_emojis
+        )
+        mock_emoji_service.get_emoji_by_code = AsyncMock(
+            side_effect=get_emoji_by_code_side_effect
+        )
+
+        # First save the test emojis
+        result_emojis = await mock_emoji_service.load_and_save_emojis_from_json(
+            "test.json"
+        )
+
+        assert len(result_emojis) == 3, "Should save 3 test emojis"
+
+        # Then try to retrieve them
+        for saved_emoji in result_emojis:
+            retrieved_emoji = await mock_emoji_service.get_emoji_by_code(
+                saved_emoji.code
             )
-
-            assert len(result_emojis) == 3, "Should save 3 test emojis"
-
-            # Then try to retrieve them
-            for saved_emoji in result_emojis:
-                retrieved_emoji = await mock_emoji_service.get_emoji_by_code(
-                    saved_emoji.code
-                )
             assert (
                 retrieved_emoji is not None
             ), f"Should retrieve emoji {saved_emoji.code}"

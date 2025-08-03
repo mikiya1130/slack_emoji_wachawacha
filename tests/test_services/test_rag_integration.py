@@ -82,8 +82,8 @@ class TestRAGIntegration:
     @pytest_asyncio.fixture
     async def slack_handler(self, mock_openai_service, emoji_service):
         """Create SlackHandler with mocked app"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -97,7 +97,7 @@ class TestRAGIntegration:
                 "X-Rate-Limit-Remaining": "100",
                 "X-Rate-Limit-Reset": "1234567890",
             }
-            mock_client.reactions_add = Mock(return_value=response_mock)
+            mock_client.reactions_add = AsyncMock(return_value=response_mock)
             mock_app.client = mock_client
             mock_app.event = Mock(return_value=lambda func: func)
             mock_app_class.return_value = mock_app

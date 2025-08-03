@@ -556,19 +556,30 @@ class DatabaseService:
         try:
             async with self.get_connection() as conn:
                 async with conn.cursor() as cursor:
-                    # 基本クエリ
+                    # 基本クエリ（NaN and NULL handling in SQL）
                     query = """
                         SELECT id, code, description, category, emotion_tone,
                                usage_scene, priority, embedding, created_at, updated_at,
-                               1 - (embedding <=> %s::vector) AS similarity_score
+                               CASE
+                                   WHEN (embedding <=> %s::vector) IS NULL THEN 0.0
+                                   WHEN (embedding <=> %s::vector) = 'NaN'::float THEN 0.0
+                                   ELSE GREATEST(0.0, LEAST(1.0, 1 - (embedding <=> %s::vector)))
+                               END AS similarity_score
                         FROM emojis
                         WHERE embedding IS NOT NULL
-                        AND embedding <=> %s::vector IS NOT NULL
                     """
 
+                    # Convert numpy array to list if needed
+                    vector_list = (
+                        query_vector.tolist()
+                        if hasattr(query_vector, "tolist")
+                        else query_vector
+                    )
+
                     params: List[Any] = [
-                        json.dumps(query_vector),
-                        json.dumps(query_vector),
+                        json.dumps(vector_list),
+                        json.dumps(vector_list),
+                        json.dumps(vector_list),
                     ]
 
                     # フィルタ条件を追加
@@ -593,11 +604,8 @@ class DatabaseService:
                         emoji = self._row_to_emoji_data(
                             row[:-1]
                         )  # 最後のsimilarity_scoreを除く
-                        # NaNチェックを追加
+                        # similarity_scoreを動的属性として追加（SQL内でNaN処理済み）
                         score = float(row[-1])
-                        if score != score:  # NaN check
-                            score = 0.0
-                        # similarity_scoreを動的属性として追加
                         setattr(emoji, "similarity_score", score)
                         emojis.append(emoji)
 

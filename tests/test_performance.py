@@ -101,8 +101,8 @@ class TestPerformance:
     @pytest_asyncio.fixture
     async def slack_handler(self, mock_openai_service, mock_database_service):
         """Create SlackHandler with mocked services"""
-        with patch("app.services.slack_handler.App") as mock_app_class, patch(
-            "app.services.slack_handler.SocketModeHandler"
+        with patch("app.services.slack_handler.AsyncApp") as mock_app_class, patch(
+            "app.services.slack_handler.AsyncSocketModeHandler"
         ) as mock_socket_handler_class, patch(
             "app.services.slack_handler.Config"
         ) as mock_config_class:
@@ -110,7 +110,7 @@ class TestPerformance:
             # Mock App instance
             mock_app = Mock()
             mock_client = Mock()
-            mock_client.reactions_add = Mock(return_value={"ok": True})
+            mock_client.reactions_add = AsyncMock(return_value={"ok": True})
             mock_app.client = mock_client
             mock_app.event = Mock(return_value=lambda func: func)
             mock_app_class.return_value = mock_app
