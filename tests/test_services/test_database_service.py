@@ -571,3 +571,190 @@ async def clean_database():
     """テスト後のデータベースクリーンアップ"""
     yield
     # Note: cleanup is handled by individual test fixtures
+
+
+class TestDatabaseServiceAdminUser:
+    """管理者ユーザー関連の操作のテスト"""
+
+    @pytest_asyncio.fixture
+    async def mock_database_service(self):
+        """DatabaseServiceのインスタンス"""
+        from app.services.database_service import DatabaseService
+
+        db_service = DatabaseService()
+        await db_service.initialize()
+        yield db_service
+        await db_service.close()
+
+    @pytest.mark.asyncio
+    async def test_admin_user_table_creation(self, mock_database_service):
+        """admin_usersテーブル作成のテスト"""
+        # テーブル作成実行
+        result = await mock_database_service.create_admin_user_table()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_save_admin_user(self, mock_database_service):
+        """管理者ユーザー保存のテスト"""
+        from app.models.admin_user import AdminUser, Permission
+        from datetime import datetime, UTC
+
+        # テストデータ
+        admin_user = AdminUser(
+            user_id="U_TEST_ADMIN",
+            username="test_admin",
+            permission=Permission.ADMIN,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        # 実際にデータベースに保存
+        result = await mock_database_service.save_admin_user(admin_user)
+        assert result is True
+
+        # 保存されたデータを確認
+        saved_user = await mock_database_service.get_admin_user("U_TEST_ADMIN")
+        assert saved_user is not None
+        assert saved_user.username == "test_admin"
+        assert saved_user.permission == Permission.ADMIN
+
+    @pytest.mark.asyncio
+    async def test_get_admin_user(self, mock_database_service):
+        """管理者ユーザー取得のテスト"""
+        from app.models.admin_user import AdminUser, Permission
+        from datetime import datetime, UTC
+
+        # テストデータを先に保存
+        now = datetime.now(UTC)
+        admin_user = AdminUser(
+            user_id="U_TEST_ADMIN",
+            username="test_admin",
+            permission=Permission.ADMIN,
+            created_at=now,
+            updated_at=now,
+        )
+        await mock_database_service.save_admin_user(admin_user)
+
+        # データ取得
+        result = await mock_database_service.get_admin_user("U_TEST_ADMIN")
+        assert result is not None
+        assert result.user_id == "U_TEST_ADMIN"
+        assert result.username == "test_admin"
+        assert result.permission == Permission.ADMIN
+
+    @pytest.mark.asyncio
+    async def test_get_admin_user_not_found(self, mock_database_service):
+        """存在しない管理者ユーザー取得のテスト"""
+        # 存在しないユーザーIDで取得試行
+        result = await mock_database_service.get_admin_user("U_NOT_EXIST")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_update_admin_user(self, mock_database_service):
+        """管理者ユーザー更新のテスト"""
+        from app.models.admin_user import AdminUser, Permission
+        from datetime import datetime, UTC
+
+        # テストデータ
+        admin_user = AdminUser(
+            user_id="U_TEST_ADMIN",
+            username="test_admin_updated",
+            permission=Permission.EDITOR,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        # 先にユーザーを保存
+        await mock_database_service.save_admin_user(admin_user)
+
+        # ユーザー情報を更新
+        admin_user.username = "test_admin_updated"
+        admin_user.permission = Permission.EDITOR
+
+        result = await mock_database_service.update_admin_user(admin_user)
+        assert result is True
+
+        # 更新されたデータを確認
+        updated_user = await mock_database_service.get_admin_user("U_TEST_ADMIN")
+        assert updated_user is not None
+        assert updated_user.username == "test_admin_updated"
+        assert updated_user.permission == Permission.EDITOR
+
+    @pytest.mark.asyncio
+    async def test_delete_admin_user(self, mock_database_service):
+        """管理者ユーザー削除のテスト"""
+        from app.models.admin_user import AdminUser, Permission
+
+        # 先にユーザーを保存
+        admin_user = AdminUser(
+            user_id="U_TEST_ADMIN", username="test_admin", permission=Permission.ADMIN
+        )
+        await mock_database_service.save_admin_user(admin_user)
+
+        # 削除実行
+        result = await mock_database_service.delete_admin_user("U_TEST_ADMIN")
+        assert result is True
+
+        # 削除されたことを確認
+        deleted_user = await mock_database_service.get_admin_user("U_TEST_ADMIN")
+        assert deleted_user is None
+
+    @pytest.mark.asyncio
+    async def test_delete_admin_user_not_found(self, mock_database_service):
+        """存在しない管理者ユーザー削除のテスト"""
+        # 存在しないユーザーの削除試行
+        result = await mock_database_service.delete_admin_user("U_NOT_EXIST")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_list_admin_users(self, mock_database_service):
+        """管理者ユーザー一覧取得のテスト"""
+        from app.models.admin_user import AdminUser, Permission
+        from datetime import datetime, UTC
+
+        # テストデータを保存
+        now = datetime.now(UTC)
+        users = [
+            AdminUser(
+                user_id="U_ADMIN1",
+                username="admin1",
+                permission=Permission.ADMIN,
+                created_at=now,
+                updated_at=now,
+            ),
+            AdminUser(
+                user_id="U_EDITOR1",
+                username="editor1",
+                permission=Permission.EDITOR,
+                created_at=now,
+                updated_at=now,
+            ),
+            AdminUser(
+                user_id="U_VIEWER1",
+                username="viewer1",
+                permission=Permission.VIEWER,
+                created_at=now,
+                updated_at=now,
+            ),
+        ]
+
+        for user in users:
+            await mock_database_service.save_admin_user(user)
+
+        # 一覧取得
+        result = await mock_database_service.list_admin_users()
+        assert len(result) >= 3
+
+        # 保存したユーザーが含まれていることを確認
+        user_ids = [user.user_id for user in result]
+        assert "U_ADMIN1" in user_ids
+        assert "U_EDITOR1" in user_ids
+        assert "U_VIEWER1" in user_ids
+
+    @pytest.mark.asyncio
+    async def test_list_admin_users_empty(self, mock_database_service):
+        """管理者ユーザーが存在しない場合の一覧取得テスト"""
+        # 既存のユーザーがない場合（他のテストで作成されたデータは除く）
+        result = await mock_database_service.list_admin_users()
+        # 結果はリストであることを確認
+        assert isinstance(result, list)

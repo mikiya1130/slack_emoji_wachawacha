@@ -639,3 +639,149 @@ class SlackHandler:
 
         # Add current timestamp
         self.rate_limit_window.append(now)
+
+    # Slash command methods
+
+    async def register_slash_command(self, command: str, handler) -> None:
+        """
+        スラッシュコマンドを登録
+
+        Args:
+            command: コマンド名 (例: "/emoji")
+            handler: ハンドラー関数
+        """
+
+        @self.app.command(command)
+        async def slash_command_handler(ack, command, respond):
+            await ack()
+            response = await handler(command)
+            await respond(response)
+
+    async def open_modal(self, trigger_id: str, modal: Dict[str, Any]) -> None:
+        """
+        モーダルを開く
+
+        Args:
+            trigger_id: トリガーID
+            modal: モーダル定義
+        """
+        await self.app.client.views_open(trigger_id=trigger_id, view=modal)
+
+    async def respond_to_slash_command(
+        self, response_url: str, response: Dict[str, Any]
+    ) -> None:
+        """
+        スラッシュコマンドに応答
+
+        Args:
+            response_url: レスポンスURL
+            response: レスポンスデータ
+        """
+        # Implementation would use requests or aiohttp to POST to response_url
+        pass
+
+    async def update_message(
+        self,
+        channel: str,
+        timestamp: str,
+        text: str,
+        blocks: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        """
+        メッセージを更新
+
+        Args:
+            channel: チャンネルID
+            timestamp: メッセージタイムスタンプ
+            text: 更新するテキスト
+            blocks: オプションのブロック要素
+        """
+        await self.app.client.chat_update(
+            channel=channel, ts=timestamp, text=text, blocks=blocks
+        )
+
+    async def send_ephemeral_message(
+        self,
+        channel: str,
+        user: str,
+        text: str,
+        blocks: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        """
+        エフェメラルメッセージを送信
+
+        Args:
+            channel: チャンネルID
+            user: ユーザーID
+            text: メッセージテキスト
+            blocks: オプションのブロック要素
+        """
+        await self.app.client.chat_postEphemeral(
+            channel=channel, user=user, text=text, blocks=blocks
+        )
+
+    async def open_confirm_dialog(
+        self, trigger_id: str, title: str, message: str
+    ) -> None:
+        """
+        確認ダイアログを開く
+
+        Args:
+            trigger_id: トリガーID
+            title: ダイアログタイトル
+            message: 確認メッセージ
+        """
+        confirm_modal = {
+            "type": "modal",
+            "callback_id": "confirm_dialog",
+            "title": {"type": "plain_text", "text": title},
+            "blocks": [
+                {"type": "section", "text": {"type": "mrkdwn", "text": message}}
+            ],
+            "submit": {"type": "plain_text", "text": "Confirm"},
+            "close": {"type": "plain_text", "text": "Cancel"},
+        }
+        await self.open_modal(trigger_id, confirm_modal)
+
+    async def register_view_submission_handler(self, callback_id: str, handler) -> None:
+        """
+        ビュー送信ハンドラーを登録
+
+        Args:
+            callback_id: コールバックID
+            handler: ハンドラー関数
+        """
+
+        @self.app.view(callback_id)
+        async def view_submission_handler(ack, body, view):
+            await ack()
+            await handler(body)
+
+    async def register_action_handler(self, action_id: str, handler) -> None:
+        """
+        アクションハンドラーを登録
+
+        Args:
+            action_id: アクションID
+            handler: ハンドラー関数
+        """
+
+        @self.app.action(action_id)
+        async def action_handler(ack, body, action):
+            await ack()
+            await handler(body)
+
+    async def post_message_with_blocks(
+        self, channel: str, text: str, blocks: List[Dict[str, Any]]
+    ) -> None:
+        """
+        ブロック付きメッセージを投稿
+
+        Args:
+            channel: チャンネルID
+            text: フォールバックテキスト
+            blocks: ブロック要素のリスト
+        """
+        await self.app.client.chat_postMessage(
+            channel=channel, text=text, blocks=blocks
+        )

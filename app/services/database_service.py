@@ -17,6 +17,8 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional, Tuple
 import json
 
+import psycopg
+import psycopg.rows
 from psycopg_pool import AsyncConnectionPool
 
 from app.models.emoji import EmojiData
@@ -192,6 +194,20 @@ class DatabaseService:
                         CREATE INDEX IF NOT EXISTS idx_emojis_embedding
                         ON emojis USING ivfflat (embedding vector_cosine_ops)
                         WITH (lists = 100);
+                    """
+                    )
+
+                    # Create admin_users table
+                    logger.info("Creating admin_users table...")
+                    await cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS admin_users (
+                            user_id VARCHAR(50) PRIMARY KEY,
+                            username VARCHAR(100) NOT NULL,
+                            permission VARCHAR(20) NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
                     """
                     )
 
@@ -839,3 +855,201 @@ class DatabaseService:
                 k: v for k, v in global_metrics.items() if k.startswith("db_")
             },
         }
+
+    # Admin User関連のメソッド
+
+    async def create_admin_user_table(self) -> bool:
+        """admin_usersテーブルを作成
+
+        Returns:
+            bool: 作成に成功した場合True
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS admin_users (
+            user_id VARCHAR(50) PRIMARY KEY,
+            username VARCHAR(100) NOT NULL,
+            permission VARCHAR(20) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(create_table_sql)
+                    await conn.commit()
+                    logger.info("Created admin_users table")
+                    return True
+        except Exception as e:
+            logger.error(f"Error creating admin_users table: {e}")
+            return False
+
+    async def save_admin_user(self, admin_user) -> bool:
+        """管理者ユーザーを保存
+
+        Args:
+            admin_user: AdminUserインスタンス
+
+        Returns:
+            bool: 保存に成功した場合True
+        """
+        sql = """
+        INSERT INTO admin_users (user_id, username, permission, created_at, updated_at)
+        VALUES (%(user_id)s, %(username)s, %(permission)s, %(created_at)s, %(updated_at)s)
+        ON CONFLICT (user_id) DO UPDATE SET
+            username = EXCLUDED.username,
+            permission = EXCLUDED.permission,
+            updated_at = EXCLUDED.updated_at
+        """
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        sql,
+                        {
+                            "user_id": admin_user.user_id,
+                            "username": admin_user.username,
+                            "permission": admin_user.permission.value,
+                            "created_at": admin_user.created_at,
+                            "updated_at": admin_user.updated_at,
+                        },
+                    )
+                    await conn.commit()
+                    return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error saving admin user: {e}")
+            return False
+
+    async def get_admin_user(self, user_id: str) -> Optional[Any]:
+        """管理者ユーザーを取得
+
+        Args:
+            user_id: SlackユーザーID
+
+        Returns:
+            Optional[AdminUser]: 管理者ユーザー情報、存在しない場合None
+        """
+        from app.models.admin_user import AdminUser, Permission
+
+        sql = """
+        SELECT user_id, username, permission, created_at, updated_at
+        FROM admin_users
+        WHERE user_id = %(user_id)s
+        """
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor(row_factory=psycopg.rows.dict_row) as cursor:
+                    await cursor.execute(sql, {"user_id": user_id})
+                    row = await cursor.fetchone()
+                    if row:
+                        return AdminUser(
+                            user_id=row["user_id"],
+                            username=row["username"],
+                            permission=Permission(row["permission"]),
+                            created_at=row["created_at"],
+                            updated_at=row["updated_at"],
+                        )
+                    return None
+        except Exception as e:
+            logger.error(f"Error getting admin user: {e}")
+            return None
+
+    async def update_admin_user(self, admin_user) -> bool:
+        """管理者ユーザーを更新
+
+        Args:
+            admin_user: AdminUserインスタンス
+
+        Returns:
+            bool: 更新に成功した場合True
+        """
+        from datetime import datetime, UTC
+
+        sql = """
+        UPDATE admin_users
+        SET username = %(username)s,
+            permission = %(permission)s,
+            updated_at = %(updated_at)s
+        WHERE user_id = %(user_id)s
+        """
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        sql,
+                        {
+                            "user_id": admin_user.user_id,
+                            "username": admin_user.username,
+                            "permission": admin_user.permission.value,
+                            "updated_at": datetime.now(UTC),
+                        },
+                    )
+                    await conn.commit()
+                    return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error updating admin user: {e}")
+            return False
+
+    async def delete_admin_user(self, user_id: str) -> bool:
+        """管理者ユーザーを削除
+
+        Args:
+            user_id: SlackユーザーID
+
+        Returns:
+            bool: 削除に成功した場合True
+        """
+        sql = "DELETE FROM admin_users WHERE user_id = %(user_id)s"
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, {"user_id": user_id})
+                    await conn.commit()
+                    return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error deleting admin user: {e}")
+            return False
+
+    async def list_admin_users(self) -> List[Any]:
+        """管理者ユーザー一覧を取得
+
+        Returns:
+            List[AdminUser]: 管理者ユーザーのリスト
+        """
+        from app.models.admin_user import AdminUser, Permission
+
+        sql = """
+        SELECT user_id, username, permission, created_at, updated_at
+        FROM admin_users
+        ORDER BY created_at DESC
+        """
+        try:
+            if not self.connection_pool:
+                raise DatabaseConnectionError("Connection pool not initialized")
+            async with self.connection_pool.connection() as conn:
+                async with conn.cursor(row_factory=psycopg.rows.dict_row) as cursor:
+                    await cursor.execute(sql)
+                    rows = await cursor.fetchall()
+                    return [
+                        AdminUser(
+                            user_id=row["user_id"],
+                            username=row["username"],
+                            permission=Permission(row["permission"]),
+                            created_at=row["created_at"],
+                            updated_at=row["updated_at"],
+                        )
+                        for row in rows
+                    ]
+        except Exception as e:
+            logger.error(f"Error listing admin users: {e}")
+            return []

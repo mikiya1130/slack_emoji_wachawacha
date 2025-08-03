@@ -462,13 +462,24 @@ class TestEmojiServiceBusinessLogic:
     async def test_get_emoji_stats(self, mock_emoji_service):
         """絵文字統計情報取得テスト"""
         # DatabaseServiceのmockを設定
-        mock_emoji_service.database_service.count_emojis.return_value = 100
+        from unittest.mock import AsyncMock
+
+        mock_emoji_service.database_service.get_all_emojis = AsyncMock(
+            return_value=[
+                EmojiData(
+                    id=1, code=":smile:", description="smile", embedding=[0.1] * 1536
+                ),
+                EmojiData(id=2, code=":cry:", description="cry", embedding=None),
+            ]
+        )
 
         stats = await mock_emoji_service.get_emoji_stats()
 
         assert isinstance(stats, dict)
-        assert "total_emojis" in stats
-        assert stats["total_emojis"] == 100
+        assert "total" in stats
+        assert stats["total"] == 2
+        assert stats["vectorized"] == 1
+        assert stats["not_vectorized"] == 1
 
     @pytest.mark.asyncio
     async def test_get_emojis_by_category(self, mock_emoji_service):

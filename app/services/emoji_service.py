@@ -277,12 +277,59 @@ class EmojiService:
 
     async def get_emoji_stats(self) -> Dict[str, Any]:
         """絵文字統計を取得"""
-        total = await self.count_emojis()
-        return {
-            "total_emojis": total,
-            "cached_emojis": len(self.emoji_cache),
-            "cache_hit_rate": 0.0,  # 簡単な実装
-        }
+        try:
+            # 全絵文字を取得
+            all_emojis = await self.database_service.get_all_emojis(limit=10000)
+            total = len(all_emojis)
+
+            # ベクトル化の統計
+            vectorized = sum(1 for emoji in all_emojis if emoji.embedding is not None)
+            not_vectorized = total - vectorized
+
+            # カテゴリ別の統計
+            by_category: Dict[str, int] = {}
+            by_emotion_tone: Dict[str, int] = {}
+
+            for emoji in all_emojis:
+                # カテゴリ別
+                if emoji.category:
+                    by_category[emoji.category] = by_category.get(emoji.category, 0) + 1
+
+                # 感情トーン別
+                if emoji.emotion_tone:
+                    by_emotion_tone[emoji.emotion_tone] = (
+                        by_emotion_tone.get(emoji.emotion_tone, 0) + 1
+                    )
+
+            # 統計情報を構築
+            stats = {
+                "total": total,
+                "vectorized": vectorized,
+                "not_vectorized": not_vectorized,
+                "by_category": by_category,
+                "by_emotion_tone": by_emotion_tone,
+            }
+
+            # キャッシュ統計（オプション）
+            if self.cache_enabled:
+                stats["cache_stats"] = {
+                    "cached_emojis": len(self.emoji_cache),
+                    "cache_enabled": True,
+                    "cache_hit_rate": self._calculate_cache_hit_rate(),
+                }
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error getting emoji stats: {e}")
+            # エラー時はデフォルト値を返す
+            return {
+                "total": 0,
+                "vectorized": 0,
+                "not_vectorized": 0,
+                "by_category": {},
+                "by_emotion_tone": {},
+            }
 
     async def validate_emoji_data(self, emoji_data) -> bool:
         """絵文字データを検証"""
@@ -817,3 +864,87 @@ class EmojiService:
         misses = global_metrics.get("emoji_cache_misses", {}).get("sum", 0)
         total = hits + misses
         return (hits / total * 100) if total > 0 else 0.0
+
+    async def search_emojis(self, search_term: str) -> List[EmojiData]:
+        """
+        検索語句で絵文字を検索
+
+        Args:
+            search_term: 検索語句
+
+        Returns:
+            List[EmojiData]: マッチした絵文字のリスト
+        """
+        all_emojis = await self.get_all_emojis()
+        search_lower = search_term.lower()
+
+        # コード、説明、カテゴリで検索
+        results = []
+        for emoji in all_emojis:
+            if (
+                search_lower in emoji.code.lower()
+                or search_lower in emoji.description.lower()
+                or (emoji.category and search_lower in emoji.category.lower())
+                or (emoji.usage_scene and search_lower in emoji.usage_scene.lower())
+            ):
+                results.append(emoji)
+
+        return results
+
+    async def delete_emoji_by_code(self, emoji_code: str) -> bool:
+        """
+        絵文字コードで絵文字を削除
+
+        Args:
+            emoji_code: 絵文字コード
+
+        Returns:
+            bool: 削除に成功した場合True
+        """
+        try:
+            # コードで絵文字を検索
+            emoji = await self._db_service.get_emoji_by_code(emoji_code)
+            if not emoji:
+                logger.warning(f"Emoji not found: {emoji_code}")
+                return False
+
+            # 削除を実行
+            success = await self._db_service.delete_emoji(emoji.id)
+
+            # キャッシュから削除
+            if success and emoji_code in self.emoji_cache:
+                del self.emoji_cache[emoji_code]
+
+            return success
+        except Exception as e:
+            logger.error(f"Error deleting emoji {emoji_code}: {e}")
+            return False
+
+    async def create_emoji(self, emoji_data_dict: Dict[str, Any]) -> EmojiData:
+        """
+        新しい絵文字を作成
+
+        Args:
+            emoji_data_dict: 絵文字データの辞書
+
+        Returns:
+            EmojiData: 作成された絵文字データ
+        """
+        # EmojiDataオブジェクトを作成
+        emoji_data = EmojiData(
+            code=emoji_data_dict["code"],
+            description=emoji_data_dict["description"],
+            category=emoji_data_dict.get("category", "custom"),
+            emotion_tone=emoji_data_dict.get("emotion_tone", "neutral"),
+            usage_scene=emoji_data_dict.get("usage_scene", "general"),
+            priority=emoji_data_dict.get("priority", 1),
+        )
+
+        # データベースに保存
+        saved_emoji = await self._db_service.insert_emoji(emoji_data)
+
+        # キャッシュに追加
+        if self.cache_enabled:
+            self.emoji_cache[saved_emoji.code] = saved_emoji
+
+        return saved_emoji
