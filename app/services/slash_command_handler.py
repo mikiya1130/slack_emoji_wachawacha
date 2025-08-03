@@ -409,24 +409,23 @@ class SlashCommandHandler:
         response_url = payload.get("response_url")
 
         if action_id == "vectorize_confirm":
-            # 即座の応答
-            await self.slack_handler.send_ephemeral_message(
-                channel="",  # response_urlを使うので不要
-                user=user_id,
+            # DMとして即座の応答を送信
+            await self.slack_handler.app.client.chat_postMessage(
+                channel=user_id,
                 text="✅ Vectorization started! Processing in background...",
             )
 
             # バックグラウンドでベクトル化を実行
             options: Dict[str, Any] = {}  # TODO: モーダルから状態を取得
-            if response_url:
-                asyncio.create_task(
-                    self._run_vectorization_task(user_id, response_url, options)
-                )
+            logger.info(f"Starting vectorization task for user {user_id}")
+            asyncio.create_task(
+                self._run_vectorization_task(user_id, response_url, options)
+            )
 
         elif action_id == "vectorize_cancel":
-            await self.slack_handler.send_ephemeral_message(
-                channel="",
-                user=user_id,
+            # DMとしてキャンセルメッセージを送信
+            await self.slack_handler.app.client.chat_postMessage(
+                channel=user_id,
                 text="❌ Vectorization cancelled.",
             )
 
@@ -441,6 +440,7 @@ class SlashCommandHandler:
             response_url: レスポンスURL
             options: ベクトル化オプション
         """
+        logger.info(f"Vectorization task started for user {user_id}")
         try:
             # 開始メッセージ
             await self.slack_handler.post_message_with_blocks(
@@ -493,7 +493,7 @@ class SlashCommandHandler:
             )
 
         except Exception as e:
-            logger.error(f"Vectorization error: {e}")
+            logger.error(f"Vectorization error: {e}", exc_info=True)
             error_blocks = [
                 {
                     "type": "section",

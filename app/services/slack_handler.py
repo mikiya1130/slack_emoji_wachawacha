@@ -119,6 +119,47 @@ class SlackHandler:
                     }
                 )
 
+        # vectorize_confirmアクションハンドラーを登録
+        @self.app.action("vectorize_confirm")
+        async def handle_vectorize_confirm(ack, body, action):
+            """ベクトル化確認アクションを処理"""
+            try:
+                await ack()
+                if self.slash_command_handler:
+                    await self.slash_command_handler.handle_action(body)
+            except Exception as e:
+                logger.error(f"Error in vectorize_confirm action handler: {e}")
+
+        # vectorize_cancelアクションハンドラーを登録
+        @self.app.action("vectorize_cancel")
+        async def handle_vectorize_cancel(ack, body, action):
+            """ベクトル化キャンセルアクションを処理"""
+            try:
+                await ack()
+                if self.slash_command_handler:
+                    await self.slash_command_handler.handle_action(body)
+            except Exception as e:
+                logger.error(f"Error in vectorize_cancel action handler: {e}")
+
+        # emoji_add_modalのview_submissionハンドラーを登録
+        @self.app.view("emoji_add_modal")
+        async def handle_emoji_add_submission(ack, body, view):
+            """絵文字追加モーダルの送信を処理"""
+            try:
+                await ack()
+                if self.slash_command_handler:
+                    result = await self.slash_command_handler.handle_emoji_add_submission(body)
+                    # 結果メッセージがある場合は送信
+                    if result and "text" in result:
+                        user_id = body["user"]["id"]
+                        await self.app.client.chat_postMessage(
+                            channel=user_id,
+                            text=result["text"]
+                        )
+            except Exception as e:
+                logger.error(f"Error in emoji_add_modal submission handler: {e}")
+                await ack(response_action="errors", errors={"error": str(e)})
+
     async def start(self):
         """Start the Slack handler and Socket Mode connection."""
         logger.info("Starting Slack handler...")
