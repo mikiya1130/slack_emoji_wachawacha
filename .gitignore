@@ -64,3 +64,4 @@ Thumbs.db
 
 # Project specific
 *.log
+.serena/cache
