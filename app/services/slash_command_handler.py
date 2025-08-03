@@ -66,8 +66,18 @@ class SlashCommandHandler:
                 ):
                     return self._create_permission_denied_response(Permission.VIEWER)
 
-                emojis = await self.emoji_service.get_all_emojis()
-                return self._create_list_response(emojis)
+                emojis = await self.emoji_service.get_all_emojis(limit=10000)
+                await self._send_paginated_emoji_list(payload, emojis, "Emoji List")
+
+                # ページ数を計算
+                page_size = 100
+                total_pages = (len(emojis) + page_size - 1) // page_size
+
+                msg_plural = "s" if total_pages != 1 else ""
+                return {
+                    "response_type": "ephemeral",
+                    "text": f"📋 {len(emojis)} emojis sent in {total_pages} message{msg_plural}",
+                }
 
             elif subcommand == "add":
                 # EDITOR権限が必要
@@ -95,7 +105,33 @@ class SlashCommandHandler:
 
                 search_term = " ".join(args)
                 emojis = await self.emoji_service.search_emojis(search_term)
-                return self._create_search_response(search_term, emojis)
+
+                if not emojis:
+                    return {
+                        "response_type": "ephemeral",
+                        "text": f"🔍 No emojis found for '{search_term}'.",
+                    }
+
+                await self._send_paginated_emoji_list(
+                    payload, emojis, f"Search Results for '{search_term}'"
+                )
+
+                # ページ数を計算
+                page_size = 100
+                total_pages = (len(emojis) + page_size - 1) // page_size
+
+                if total_pages == 1:
+                    message = f"🔍 Found {len(emojis)} emojis for '{search_term}'"
+                else:
+                    message = (
+                        f"🔍 Found {len(emojis)} emojis for '{search_term}'. "
+                        f"Sent in {total_pages} messages"
+                    )
+
+                return {
+                    "response_type": "ephemeral",
+                    "text": message,
+                }
 
             elif subcommand == "delete":
                 # EDITOR権限が必要
@@ -204,6 +240,79 @@ class SlashCommandHandler:
         args = parts[1:] if len(parts) > 1 else []
 
         return subcommand, args
+
+    async def _send_paginated_emoji_list(
+        self, payload: Dict[str, Any], emojis: List[Any], title: str
+    ) -> None:
+        """
+        絵文字リストをページネーション付きで送信
+
+        Args:
+            payload: Slackコマンドペイロード
+            emojis: 絵文字リスト
+            title: リストのタイトル
+        """
+        if not emojis:
+            return
+
+        user_id = payload["user_id"]
+        channel_id = payload["channel_id"]
+        page_size = 100
+        total_pages = (len(emojis) + page_size - 1) // page_size
+
+        # ページ数が多い場合は情報ログを出力
+        if total_pages > 10:
+            logger.info(f"Sending {total_pages} pages of emojis to user {user_id}")
+
+        for page_num in range(total_pages):
+            start_idx = page_num * page_size
+            end_idx = min(start_idx + page_size, len(emojis))
+            page_emojis = emojis[start_idx:end_idx]
+
+            # ページヘッダー
+            if total_pages > 1:
+                header = f"📄 *{title}* (Page {page_num + 1}/{total_pages})\n"
+                header += f"Items {start_idx + 1}-{end_idx} of {len(emojis)}\n\n"
+            else:
+                header = f"📄 *{title}* ({len(emojis)} items)\n\n"
+
+            # 絵文字リスト作成
+            emoji_lines = []
+            for emoji in page_emojis:
+                # 説明が長い場合は切り詰める
+                description = emoji.description
+                if len(description) > 80:
+                    description = description[:77] + "..."
+                emoji_lines.append(f"• {emoji.code} - {description}")
+
+            message_text = header + "\n".join(emoji_lines)
+
+            # エフェメラルメッセージとして送信
+            try:
+                await self.slack_handler.send_ephemeral_message(
+                    channel=channel_id, user=user_id, text=message_text
+                )
+
+                # Slackのレート制限を回避するため、各ページ送信後に短い遅延を追加
+                # （最後のページでは遅延不要）
+                if page_num < total_pages - 1:
+                    # ページ数が多い場合は段階的に遅延を増やす
+                    if page_num > 0 and page_num % 10 == 0:
+                        # 10ページごとに長めの遅延
+                        await asyncio.sleep(1.0)
+                        logger.info(
+                            f"Sent {page_num + 1}/{total_pages} pages, pausing..."
+                        )
+                    else:
+                        # 通常の遅延
+                        await asyncio.sleep(0.5)
+
+            except Exception as e:
+                logger.error(
+                    f"Error sending paginated message (page {page_num + 1}): {e}"
+                )
+                # エラーが発生しても他のページは送信を続ける
+                continue
 
     def parse_vectorize_options(self, args: List[str]) -> Dict[str, Any]:
         """
@@ -430,43 +539,40 @@ class SlashCommandHandler:
             "text": f"❌ Error: {message}",
         }
 
-    def _create_list_response(self, emojis: List[Any]) -> Dict[str, Any]:
-        """絵文字リストレスポンスを作成"""
-        if not emojis:
-            return {"response_type": "ephemeral", "text": "No emojis found."}
-
-        emoji_list = "\n".join([f"• {e.code} - {e.description}" for e in emojis[:20]])
-
-        return {"response_type": "ephemeral", "text": f"Emoji list:\n{emoji_list}"}
-
-    def _create_search_response(
-        self, search_term: str, emojis: List[Any]
-    ) -> Dict[str, Any]:
-        """検索結果レスポンスを作成"""
-        if not emojis:
-            return {
-                "response_type": "ephemeral",
-                "text": f"No emojis found for '{search_term}'.",
-            }
-
-        emoji_list = "\n".join([f"• {e.code} - {e.description}" for e in emojis])
-
-        return {
-            "response_type": "ephemeral",
-            "text": f"Search results for '{search_term}':\n{emoji_list}",
-        }
-
     def _create_stats_response(self, stats: Dict[str, Any]) -> Dict[str, Any]:
         """統計情報レスポンスを作成"""
-        stats_text = f"""Emoji Statistics:
+        stats_text = f"""📊 *Emoji Statistics*
+
+*General:*
 • Total emojis: {stats['total']}
 • Vectorized: {stats['vectorized']}
 • Not vectorized: {stats['not_vectorized']}
 
-By category:
+*By Category:*
 """
-        for category, count in stats["by_category"].items():
-            stats_text += f"• {category}: {count}\n"
+        # カテゴリを数の多い順にソート
+        sorted_categories = sorted(
+            stats["by_category"].items(), key=lambda x: x[1], reverse=True
+        )
+
+        # カテゴリが多すぎる場合は制限
+        if len(sorted_categories) > 15:
+            for category, count in sorted_categories[:15]:
+                stats_text += f"• {category}: {count}\n"
+            remaining = len(sorted_categories) - 15
+            stats_text += f"• ... and {remaining} more categories\n"
+        else:
+            for category, count in sorted_categories:
+                stats_text += f"• {category}: {count}\n"
+
+        # 感情トーン統計も追加
+        if "by_emotion_tone" in stats and stats["by_emotion_tone"]:
+            stats_text += "\n*By Emotion Tone:*\n"
+            sorted_emotions = sorted(
+                stats["by_emotion_tone"].items(), key=lambda x: x[1], reverse=True
+            )
+            for emotion, count in sorted_emotions:
+                stats_text += f"• {emotion}: {count}\n"
 
         return {"response_type": "ephemeral", "text": stats_text}
 

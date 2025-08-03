@@ -5,6 +5,12 @@ RAG（Retrieval-Augmented Generation）とベクトル類似度検索を用い�
 ## 機能
 
 - **自動絵文字リアクション**: メッセージ内容を分析して関連する絵文字リアクションを追加
+- **スラッシュコマンド**: `/emoji`コマンドによる対話的な絵文字管理
+  - 絵文字の追加・更新・削除（モーダルUI使用）
+  - 絵文字の検索・一覧表示
+  - ベクトル化処理の実行
+  - 統計情報の表示
+- **権限管理**: 3段階の権限システム（Viewer/Editor/Admin）
 - **RAG実装**: OpenAI埋め込みとpgvectorを使ったPostgreSQLによる類似度検索
 - **Socket Mode**: SlackのSocket Modeによるリアルタイムメッセージ処理
 - **Docker環境**: PostgreSQL + pgvectorデータベースを含むコンテナ化されたアプリケーション
@@ -74,11 +80,37 @@ RAG（Retrieval-Augmented Generation）とベクトル類似度検索を用い�
 ### Slack App設定
 
 1. https://api.slack.com/apps で新しいSlack Appを作成
-2. Socket Modeを有効化してApp-Level Tokenを生成
-3. Bot Token Scopesを追加:
-   - `channels:history` - メッセージ読み取り
-   - `reactions:write` - 絵文字リアクション追加
-4. ワークスペースにアプリをインストールしてBot User OAuth Tokenをコピー
+
+2. **Socket Modeを有効化**:
+   - Settings → Socket Mode → Enable Socket Mode をON
+   - App-Level Tokenを生成（スコープ: `connections:write`）
+
+3. **Bot Token Scopesを追加**:
+   - OAuth & Permissions → Scopes → Bot Token Scopes
+   - 必要なスコープ:
+     - `channels:history` - メッセージ読み取り
+     - `reactions:write` - 絵文字リアクション追加
+     - `chat:write` - メッセージ送信（エフェメラルメッセージ用）
+     - `commands` - スラッシュコマンドの受信
+
+4. **スラッシュコマンドの設定**:
+   - Slash Commands → Create New Command
+   - コマンド: `/emoji`
+   - 説明: Manage emoji reactions
+   - 使用例: `/emoji help`
+   - Socket Modeを使用するため、Request URLは不要
+
+5. **Interactivity & Shortcutsを有効化**:
+   - Interactivity & Shortcuts → Interactivity をON
+   - Socket Modeを使用するため、Request URLは不要
+
+6. **Event Subscriptionsを有効化**:
+   - Event Subscriptions → Enable Events をON
+   - Socket Modeを使用するため、Request URLは不要
+   - Subscribe to bot events:
+     - `message.channels` - チャンネルメッセージの受信
+
+7. ワークスペースにアプリをインストールしてBot User OAuth Tokenをコピー
 
 ### アプリケーションの実行
 

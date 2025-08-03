@@ -18,7 +18,9 @@ class TestSlashCommandHandler:
     @pytest.fixture
     def mock_slack_handler(self):
         """モックSlackHandler"""
-        return Mock()
+        mock = Mock()
+        mock.send_ephemeral_message = AsyncMock()
+        return mock
 
     @pytest.fixture
     def mock_emoji_service(self):
@@ -97,8 +99,7 @@ class TestSlashCommandHandler:
         )
 
         assert response["response_type"] == "ephemeral"
-        assert ":smile:" in response["text"]
-        assert ":thumbsup:" in response["text"]
+        assert "2 emojis sent in 1 message" in response["text"]
         mock_permission_manager.check_permission.assert_called_once_with(
             "U123456", Permission.VIEWER
         )
@@ -145,9 +146,7 @@ class TestSlashCommandHandler:
         )
 
         assert response["response_type"] == "ephemeral"
-        assert "Search results for 'happy':" in response["text"]
-        assert ":smile:" in response["text"]
-        assert ":joy:" in response["text"]
+        assert "Found 2 emojis for 'happy'" in response["text"]
 
     @pytest.mark.asyncio
     async def test_handle_emoji_command_delete(

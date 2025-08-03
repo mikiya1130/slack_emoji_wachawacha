@@ -166,8 +166,9 @@ class TestRAGIntegration:
         # Test message
         test_message = "This is frustrating and annoying!"
 
-        # Process through RAG pipeline
-        result = await slack_handler.get_emojis_for_message(test_message)
+        # Process through RAG pipeline using emoji_service directly
+        embedding = await mock_openai_service.get_embedding(test_message)
+        result = await emoji_service.find_similar_emojis(embedding, limit=3)
 
         # Verify OpenAI service was called
         mock_openai_service.get_embedding.assert_called_once_with(test_message)
@@ -234,8 +235,9 @@ class TestRAGIntegration:
         # Create very long message
         long_message = "This is a test. " * 500  # Very long message
 
-        # Process through RAG
-        result = await slack_handler.get_emojis_for_message(long_message)
+        # Process through RAG using emoji_service directly
+        embedding = await mock_openai_service.get_embedding(long_message)
+        result = await emoji_service.find_similar_emojis(embedding, limit=3)
 
         # Verify truncation or handling
         mock_openai_service.get_embedding.assert_called_once()
@@ -243,7 +245,9 @@ class TestRAGIntegration:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_rag_flow_with_special_characters(self, slack_handler, emoji_service):
+    async def test_rag_flow_with_special_characters(
+        self, slack_handler, emoji_service, mock_openai_service
+    ):
         """Test RAG flow with special characters and emojis in message"""
         slack_handler.set_emoji_service(emoji_service)
 
@@ -252,8 +256,9 @@ class TestRAGIntegration:
             "Hello! 😊 This is @user with #channel and https://example.com"
         )
 
-        # Process message
-        result = await slack_handler.get_emojis_for_message(special_message)
+        # Process message using emoji_service directly
+        embedding = await mock_openai_service.get_embedding(special_message)
+        result = await emoji_service.find_similar_emojis(embedding, limit=3)
 
         # Should handle special characters properly
         assert result is not None
@@ -261,7 +266,7 @@ class TestRAGIntegration:
 
     @pytest.mark.asyncio
     async def test_rag_flow_with_filters(
-        self, slack_handler, emoji_service, mock_database_service
+        self, slack_handler, emoji_service, mock_database_service, mock_openai_service
     ):
         """Test RAG flow with category/emotion filters"""
         slack_handler.set_emoji_service(emoji_service)
@@ -269,10 +274,10 @@ class TestRAGIntegration:
         # Configure to use only positive emotions
         slack_handler.set_emoji_filters(category=None, emotion_tone="positive")
 
-        # Process message
-        result = await slack_handler.get_emojis_for_message(
-            "Test message", emotion_tone_filter="positive"
-        )
+        # Process message using emoji_service directly with filters
+        test_message = "Test message"
+        embedding = await mock_openai_service.get_embedding(test_message)
+        result = await emoji_service.find_similar_emojis(embedding, limit=3)
 
         # Verify filter was applied
         assert all(emoji.emotion_tone == "positive" for emoji in result)

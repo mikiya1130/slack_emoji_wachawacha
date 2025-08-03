@@ -267,12 +267,12 @@ class EmojiService:
 
     async def get_emojis_by_category(self, category: str) -> List[EmojiData]:
         """カテゴリで絵文字を取得"""
-        all_emojis = await self.get_all_emojis(limit=1000)
+        all_emojis = await self.get_all_emojis(limit=10000)
         return [emoji for emoji in all_emojis if emoji.category == category]
 
     async def get_emojis_by_emotion_tone(self, emotion_tone: str) -> List[EmojiData]:
         """感情トーンで絵文字を取得"""
-        all_emojis = await self.get_all_emojis(limit=1000)
+        all_emojis = await self.get_all_emojis(limit=10000)
         return [emoji for emoji in all_emojis if emoji.emotion_tone == emotion_tone]
 
     async def get_emoji_stats(self) -> Dict[str, Any]:
@@ -629,7 +629,7 @@ class EmojiService:
             raise RuntimeError("OpenAI service not configured")
 
         # Get all emojis that need vectorization
-        all_emojis = await self._db_service.get_all_emojis()
+        all_emojis = await self._db_service.get_all_emojis(limit=10000)
 
         successful = 0
         failed = 0
@@ -689,7 +689,7 @@ class EmojiService:
             raise RuntimeError("OpenAI service not configured")
 
         # Get all emojis
-        all_emojis = await self._db_service.get_all_emojis()
+        all_emojis = await self._db_service.get_all_emojis(limit=10000)
 
         # Apply filters
         filtered_emojis = []
@@ -875,7 +875,7 @@ class EmojiService:
         Returns:
             List[EmojiData]: マッチした絵文字のリスト
         """
-        all_emojis = await self.get_all_emojis()
+        all_emojis = await self.get_all_emojis(limit=10000)
         search_lower = search_term.lower()
 
         # コード、説明、カテゴリで検索

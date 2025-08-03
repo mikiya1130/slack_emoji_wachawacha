@@ -14,6 +14,8 @@ from app.services.slack_handler import SlackHandler
 from app.services.database_service import DatabaseService
 from app.services.emoji_service import EmojiService
 from app.services.openai_service import OpenAIService
+from app.services.slash_command_handler import SlashCommandHandler
+from app.utils.permission_manager import PermissionManager
 
 logger = get_logger("main")
 
@@ -52,11 +54,26 @@ async def main():
         await emoji_service.load_initial_data()
         logger.info("Emoji service initialized")
 
+        # Initialize permission manager
+        permission_manager = PermissionManager(db_service=db_service)
+        logger.info("Permission manager initialized")
+
         # Initialize Slack handler
         slack_handler = SlackHandler(openai_service, emoji_service)
         slack_handler.set_emoji_service(emoji_service)
+
+        # Initialize slash command handler
+        slash_command_handler = SlashCommandHandler(
+            slack_handler=slack_handler,
+            emoji_service=emoji_service,
+            permission_manager=permission_manager,
+        )
+
+        # Set slash command handler in slack handler
+        slack_handler.set_slash_command_handler(slash_command_handler)
+
         await slack_handler.start()
-        logger.info("Slack handler initialized")
+        logger.info("Slack handler initialized with slash commands")
 
         logger.info("Bot initialized successfully")
         logger.info("Slack Emoji Bot is ready!")

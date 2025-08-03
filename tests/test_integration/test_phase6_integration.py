@@ -100,8 +100,7 @@ class TestPhase6Integration:
 
         # 検証
         assert response["response_type"] == "ephemeral"
-        assert ":smile:" in response["text"]
-        assert ":wave:" in response["text"]
+        assert "2 emojis sent in 1 message" in response["text"]
 
     @pytest.mark.asyncio
     async def test_permission_flow_admin_only(
@@ -199,6 +198,7 @@ class TestPhase6Integration:
         # コマンドペイロード
         payload = {
             "user_id": "U123456",
+            "channel_id": "C123456",
             "text": "search smile",
             "trigger_id": "trigger123",
         }
@@ -208,7 +208,7 @@ class TestPhase6Integration:
 
         # 検証
         assert response["response_type"] == "ephemeral"
-        assert ":smile:" in response["text"]
+        assert "Found 1 emojis for 'smile'" in response["text"]
 
     @pytest.mark.asyncio
     async def test_stats_command_with_comprehensive_data(
@@ -265,6 +265,7 @@ class TestPhase6Integration:
         # コマンドペイロード
         payload = {
             "user_id": "U123456",
+            "channel_id": "C123456",
             "text": "list",
             "trigger_id": "trigger123",
         }

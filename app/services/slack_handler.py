@@ -80,6 +80,9 @@ class SlackHandler:
             "retries_performed": 0,
         }
 
+        # スラッシュコマンドハンドラー
+        self.slash_command_handler = None
+
         logger.info(
             f"SlackHandler initialized with advanced features: "
             f"max_retries={self.max_retries}, base_delay={self.base_delay}s, "
@@ -100,6 +103,21 @@ class SlackHandler:
                 await self.handle_message(event)
             except Exception as e:
                 logger.error(f"Error in message event handler: {e}")
+
+        # /emoji スラッシュコマンドのハンドラーを登録
+        @self.app.command("/emoji")
+        async def handle_emoji_command(ack, command, respond):
+            """Emoji関連のスラッシュコマンドを処理"""
+            try:
+                await ack()
+                await self._handle_emoji_slash_command(command, respond)
+            except Exception as e:
+                logger.error(f"Error in emoji slash command handler: {e}")
+                await respond(
+                    {
+                        "text": "エラーが発生しました。しばらく待ってから再試行してください。"
+                    }
+                )
 
     async def start(self):
         """Start the Slack handler and Socket Mode connection."""
@@ -138,27 +156,17 @@ class SlackHandler:
                 logger.debug(f"Message filtered: {message}")
                 return
 
-            message_text = message.get("text", "").strip()
-            if not message_text:
-                logger.debug("Empty message, skipping")
-                return
-
-            # OpenAI APIでメッセージをベクトル化
-            logger.info(f"Processing message: {message_text[:50]}...")
-            embedding = await self.openai_service.get_embedding(message_text)
-
-            # EmojiServiceで類似絵文字を検索
-            similar_emojis = await self.emoji_service.find_similar_emojis(
-                embedding, limit=Config.DEFAULT_REACTION_COUNT
+            # 共通処理を使用してリアクションを追加
+            result = await self._process_message_with_reactions(
+                text=message.get("text", "").strip(),
+                channel=message["channel"],
+                timestamp=message["ts"],
             )
 
-            # 絵文字コードを抽出
-            emoji_codes = [emoji.code for emoji in similar_emojis]
-
-            # Slackにリアクションを追加
-            await self.add_reactions(message["channel"], message["ts"], emoji_codes)
-
-            logger.info(f"Added reactions {emoji_codes} to message {message['ts']}")
+            if result and result.get("status") == "success":
+                logger.info(
+                    f"Added reactions {result['emojis_added']} to message {message['ts']}"
+                )
 
         except Exception as e:
             logger.error(f"Error handling message: {e}")
@@ -472,10 +480,91 @@ class SlackHandler:
 
     # RAG Integration Methods
 
+    async def _process_message_with_reactions(
+        self,
+        text: str,
+        channel: str,
+        timestamp: str,
+        fallback_emojis: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        メッセージ処理とリアクション追加の共通ロジック
+
+        Args:
+            text: メッセージテキスト
+            channel: チャンネルID
+            timestamp: メッセージタイムスタンプ
+            fallback_emojis: フォールバック絵文字
+
+        Returns:
+            処理結果辞書
+        """
+        # 空メッセージチェック
+        if not text:
+            logger.debug("Skipping empty message")
+            return None
+
+        # チャンネル・タイムスタンプの検証
+        if not channel or not timestamp:
+            logger.warning("Missing channel or timestamp in message")
+            return None
+
+        try:
+            # OpenAI APIでメッセージをベクトル化
+            logger.info(f"Processing message: {text[:50]}...")
+            embedding = await self.openai_service.get_embedding(text)
+
+            # EmojiServiceで類似絵文字を検索
+            similar_emojis = await self.emoji_service.find_similar_emojis(
+                embedding, limit=Config.DEFAULT_REACTION_COUNT
+            )
+
+            if similar_emojis:
+                # 絵文字コードを正規化（コロンを除去）
+                sanitized_names = [
+                    self._sanitize_emoji_name(emoji.code) for emoji in similar_emojis
+                ]
+                emoji_names = [name for name in sanitized_names if name is not None]
+
+                if emoji_names:
+                    # レート制限チェック
+                    if hasattr(self, "rate_limit_max"):
+                        await self._check_rate_limit()
+
+                    # リアクション追加
+                    await self.add_reactions(channel, timestamp, emoji_names)
+
+                    return {
+                        "status": "success",
+                        "emojis_added": emoji_names,
+                        "message": text[:50] + "..." if len(text) > 50 else text,
+                    }
+
+            logger.info(f"No emojis found for message: {text[:50]}...")
+            return {"status": "no_emojis", "message": text[:50]}
+
+        except Exception as e:
+            logger.error(f"Error processing message for reactions: {e}")
+
+            # フォールバック絵文字使用
+            if fallback_emojis:
+                try:
+                    await self.add_reactions(channel, timestamp, fallback_emojis)
+                    return {"status": "fallback", "emojis_added": fallback_emojis}
+                except Exception as fallback_error:
+                    logger.error(f"Fallback emoji addition failed: {fallback_error}")
+
+            return {"status": "error", "error": str(e)}
+
     def set_emoji_service(self, emoji_service) -> None:
         """Set the emoji service for RAG integration"""
         self.emoji_service = emoji_service
         logger.info("EmojiService connected to SlackHandler")
+
+    def set_slash_command_handler(self, slash_command_handler) -> None:
+        """Set the slash command handler for /emoji commands"""
+        self.slash_command_handler = slash_command_handler
+        logger.info("SlashCommandHandler connected to SlackHandler")
 
     async def process_message_for_reactions(
         self, message_event: Dict[str, Any], fallback_emojis: Optional[List[str]] = None
@@ -490,74 +579,20 @@ class SlackHandler:
         Returns:
             Processing result or None
         """
-        # Extract message details
-        text = message_event.get("text", "").strip()
+        # 共通処理を使用
         channel = message_event.get("channel")
         timestamp = message_event.get("ts")
 
-        # Skip empty messages
-        if not text:
-            logger.debug("Skipping empty message")
-            return None
+        # 型安全性のためのチェック
+        if not isinstance(channel, str) or not isinstance(timestamp, str):
+            logger.warning("Invalid channel or timestamp type in message event")
+            return {"status": "error", "error": "Invalid message format"}
 
-        # Skip if no channel or timestamp
-        if not channel or not timestamp:
-            logger.warning("Missing channel or timestamp in message event")
-            return None
-
-        try:
-            # Get emojis for the message
-            emojis = await self.get_emojis_for_message(text)
-
-            # Add reactions
-            if emojis:
-                # Extract emoji codes and strip colons
-                emoji_names = [emoji.code.strip(":") for emoji in emojis]
-
-                # Add reactions concurrently
-                await self.add_reactions_batch(channel, timestamp, emoji_names)
-
-                return {
-                    "status": "success",
-                    "emojis_added": emoji_names,
-                    "message": text[:50] + "..." if len(text) > 50 else text,
-                }
-            else:
-                logger.info(f"No emojis found for message: {text[:50]}...")
-                return {"status": "no_emojis", "message": text[:50]}
-
-        except Exception as e:
-            logger.error(f"Error processing message for reactions: {e}")
-
-            # Use fallback emojis if provided
-            if fallback_emojis:
-                try:
-                    await self.add_reactions_batch(channel, timestamp, fallback_emojis)
-                    return {"status": "fallback", "emojis_added": fallback_emojis}
-                except Exception as fallback_error:
-                    logger.error(f"Fallback emoji addition failed: {fallback_error}")
-
-            return {"status": "error", "error": str(e)}
-
-    async def get_emojis_for_message(
-        self, text: str, emotion_tone_filter: Optional[str] = None
-    ) -> List[Any]:
-        """
-        Get appropriate emojis for a message using RAG
-
-        Args:
-            text: Message text
-            emotion_tone_filter: Optional emotion tone filter
-
-        Returns:
-            List of emoji objects
-        """
-        if not hasattr(self, "emoji_service") or not self.emoji_service:
-            raise RuntimeError("EmojiService not configured")
-
-        # Search for emojis using the service
-        return await self.emoji_service.search_by_text(
-            text, emotion_tone=emotion_tone_filter
+        return await self._process_message_with_reactions(
+            text=message_event.get("text", "").strip(),
+            channel=channel,
+            timestamp=timestamp,
+            fallback_emojis=fallback_emojis,
         )
 
     def set_emoji_filters(
@@ -602,19 +637,6 @@ class SlackHandler:
 
         return health_status
 
-    async def add_reactions_batch(
-        self, channel: str, timestamp: str, emoji_names: List[str]
-    ) -> None:
-        """Add multiple reactions to a message"""
-        # Apply rate limiting if configured
-        if hasattr(self, "rate_limit_max"):
-            await self._check_rate_limit()
-
-        # Use the existing add_reactions method
-        await self.add_reactions(
-            channel=channel, timestamp=timestamp, emojis=emoji_names
-        )
-
     async def _check_rate_limit(self) -> None:
         """Check and enforce rate limiting"""
         if not hasattr(self, "rate_limit_max"):
@@ -642,20 +664,115 @@ class SlackHandler:
 
     # Slash command methods
 
-    async def register_slash_command(self, command: str, handler) -> None:
+    async def _handle_emoji_slash_command(self, command, respond) -> None:
         """
-        スラッシュコマンドを登録
+        /emoji スラッシュコマンドの処理
 
         Args:
-            command: コマンド名 (例: "/emoji")
-            handler: ハンドラー関数
+            command: Slackコマンド情報
+            respond: レスポンス関数
         """
+        # SlashCommandHandlerが設定されている場合は委譲
+        if self.slash_command_handler:
+            try:
+                # SlashCommandHandlerに処理を委譲
+                response = await self.slash_command_handler.handle_emoji_command(
+                    command
+                )
+                await respond(response)
+            except Exception as e:
+                logger.error(f"Error in slash command handler: {e}")
+                await respond(
+                    {
+                        "response_type": "ephemeral",
+                        "text": "コマンド処理中にエラーが発生しました。しばらく待ってから再試行してください。",
+                    }
+                )
+        else:
+            # フォールバック: 基本機能のみ
+            text = command.get("text", "").strip()
 
-        @self.app.command(command)
-        async def slash_command_handler(ack, command, respond):
-            await ack()
-            response = await handler(command)
-            await respond(response)
+            if not text or text == "help":
+                await self._show_emoji_help(respond)
+            elif text == "status":
+                await self._show_emoji_status(respond)
+            elif text == "metrics":
+                await self._show_emoji_metrics(respond)
+            else:
+                await respond(
+                    {
+                        "text": f"不明なコマンド: `{text}`\n`/emoji help` でヘルプを表示します。"
+                    }
+                )
+
+    async def _show_emoji_help(self, respond) -> None:
+        """絵文字ボットのヘルプを表示"""
+        help_text = """
+*🤖 Emoji Bot ヘルプ*
+
+このボットは、メッセージの内容に基づいて適切な絵文字リアクションを自動で追加します。
+
+*利用可能なコマンド:*
+• `/emoji help` - このヘルプを表示
+• `/emoji status` - ボットの状態を確認
+• `/emoji metrics` - 絵文字追加の統計を表示
+
+*機能:*
+• 🎯 AIによる文脈に沿った絵文字の自動選択
+• 🚀 高速な並行処理による絵文字追加
+• 📊 使用統計とパフォーマンス監視
+• 🛡️ エラー処理とリトライ機能
+
+何か問題がありましたら、管理者にお問い合わせください。
+        """
+        await respond({"text": help_text.strip()})
+
+    async def _show_emoji_status(self, respond) -> None:
+        """ボットの状態を表示"""
+        try:
+            health = await self.check_rag_health()
+            status_text = f"""
+*🤖 Emoji Bot ステータス*
+
+• Slack接続: {'✅ 正常' if health['slack_connected'] else '❌ 異常'}
+• OpenAI API: {'✅ 利用可能' if health['openai_available'] else '❌ 異常'}
+• データベース: {'✅ 接続済み' if health['database_connected'] else '❌ 接続失敗'}
+• 絵文字データ: {health['emoji_count']} 件
+
+*設定:*
+• 最大リトライ回数: {self.max_retries}
+• 並行処理制限: {self.concurrent_limit}
+• ベース遅延: {self.base_delay}秒
+            """
+            await respond({"text": status_text.strip()})
+        except Exception as e:
+            logger.error(f"Error getting emoji status: {e}")
+            await respond({"text": "ステータス取得中にエラーが発生しました。"})
+
+    async def _show_emoji_metrics(self, respond) -> None:
+        """絵文字追加の統計を表示"""
+        try:
+            metrics = self.get_metrics()
+            metrics_text = f"""
+*📊 Emoji Bot 統計*
+
+*リアクション統計:*
+• 総数: {metrics['total_reactions']}
+• 成功: {metrics['successful_reactions']}
+• 失敗: {metrics['failed_reactions']}
+• 成功率: {metrics['success_rate']:.1f}%
+• リトライ実行回数: {metrics['retries_performed']}
+
+*設定:*
+• 最大リトライ: {metrics['configuration']['max_retries']}
+• ベース遅延: {metrics['configuration']['base_delay']}秒
+• 最大バックオフ: {metrics['configuration']['max_backoff_delay']}秒
+• 並行制限: {metrics['configuration']['concurrent_limit']}
+            """
+            await respond({"text": metrics_text.strip()})
+        except Exception as e:
+            logger.error(f"Error getting emoji metrics: {e}")
+            await respond({"text": "統計取得中にエラーが発生しました。"})
 
     async def open_modal(self, trigger_id: str, modal: Dict[str, Any]) -> None:
         """
@@ -666,19 +783,6 @@ class SlackHandler:
             modal: モーダル定義
         """
         await self.app.client.views_open(trigger_id=trigger_id, view=modal)
-
-    async def respond_to_slash_command(
-        self, response_url: str, response: Dict[str, Any]
-    ) -> None:
-        """
-        スラッシュコマンドに応答
-
-        Args:
-            response_url: レスポンスURL
-            response: レスポンスデータ
-        """
-        # Implementation would use requests or aiohttp to POST to response_url
-        pass
 
     async def update_message(
         self,
