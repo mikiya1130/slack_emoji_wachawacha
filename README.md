@@ -2,6 +2,12 @@
 
 RAG（Retrieval-Augmented Generation）とベクトル類似度検索を用いて、メッセージに文脈に適した絵文字リアクションを自動的に追加するSlackボットです。
 
+## デモ
+
+https://github.com/user-attachments/assets/dace1288-fe93-4335-a5b6-7ddc38c09bc1
+
+![db_sample.png](data/db_sample.png)
+
 ## 機能
 
 - **自動絵文字リアクション**: メッセージ内容を分析して関連する絵文字リアクションを追加
